@@ -229,22 +229,22 @@ my_ctrl_nominal = None
 # Predictive optimal controller
 my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            dim_output,
-                                           ctrl_mode,
+                                           args.ctrl_mode,
                                            ctrl_bnds = ctrl_bnds,
                                            action_init = [],
                                            t0 = t0,
-                                           sampling_time = dt,
-                                           Nactor = Nactor,
+                                           sampling_time = args.dt,
+                                           Nactor = args.Nactor,
                                            pred_step_size = pred_step_size,
                                            sys_rhs = my_sys._state_dyn,
                                            sys_out = my_sys.out,
                                            state_sys = state_init,
-                                           buffer_size = buffer_size,
-                                           gamma = gamma,
-                                           Ncritic = Ncritic,
+                                           buffer_size = args.buffer_size,
+                                           gamma = args.gamma,
+                                           Ncritic = args.Ncritic,
                                            critic_period = critic_period,
-                                           critic_struct = critic_struct,
-                                           run_obj_struct = run_obj_struct,
+                                           critic_struct = args.critic_struct,
+                                           run_obj_struct = args.run_obj_struct,
                                            run_obj_pars = [R1],
                                            observation_target = [],
                                            state_init=state_init,
@@ -262,9 +262,9 @@ my_simulator = simulator.Simulator(sys_type = "diff_eqn",
                                    disturb_init = [],
                                    action_init = action_init,
                                    t0 = t0,
-                                   t1 = t1,
-                                   dt = dt,
-                                   max_step = dt,
+                                   t1 = args.t1,
+                                   dt = args.dt,
+                                   max_step = args.dt,
                                    first_step = 1e-4,
                                    atol = atol,
                                    rtol = rtol,
@@ -274,40 +274,40 @@ my_simulator = simulator.Simulator(sys_type = "diff_eqn",
 #----------------------------------------Initialization : : logger
 date = datetime.now().strftime("%Y-%m-%d")
 time = datetime.now().strftime("%Hh%Mm%Ss")
-datafiles = [None] * Nruns
+datafiles = [None] * args.Nruns
 
-data_folder = 'simdata/' + ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, Nactor)
+data_folder = 'simdata/' + args.ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, args.Nactor)
 
-if is_log_data:
+if args.is_log_data:
     pathlib.Path(data_folder).mkdir(parents=True, exist_ok=True) 
 
-for k in range(0, Nruns):
-    datafiles[k] = data_folder + '/' + my_sys.name + '_' + ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
+for k in range(0, args.Nruns):
+    datafiles[k] = data_folder + '/' + my_sys.name + '_' + args.ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
     
-    if is_log_data:
+    if args.is_log_data:
         print('Logging data to:    ' + datafiles[k])
             
         with open(datafiles[k], 'w', newline='') as outfile:
             writer = csv.writer(outfile)
             writer.writerow(['System', my_sys.name ] )
-            writer.writerow(['Controller', ctrl_mode ] )
-            writer.writerow(['dt', str(dt) ] )
+            writer.writerow(['Controller', args.ctrl_mode ] )
+            writer.writerow(['dt', str(args.dt) ] )
             writer.writerow(['state_init', str(state_init) ] )
-            writer.writerow(['Nactor', str(Nactor) ] )
-            writer.writerow(['pred_step_size_multiplier', str(pred_step_size_multiplier) ] )
-            writer.writerow(['buffer_size', str(buffer_size) ] )
-            writer.writerow(['run_obj_struct', str(run_obj_struct) ] )
-            writer.writerow(['R1_diag', str(R1_diag) ] )
-            writer.writerow(['R2_diag', str(R2_diag) ] )
-            writer.writerow(['Ncritic', str(Ncritic) ] )
-            writer.writerow(['gamma', str(gamma) ] )
-            writer.writerow(['critic_period_multiplier', str(critic_period_multiplier) ] )
-            writer.writerow(['critic_struct', str(critic_struct) ] )
-            writer.writerow(['actor_struct', str(actor_struct) ] )   
+            writer.writerow(['Nactor', str(args.Nactor) ] )
+            writer.writerow(['pred_step_size_multiplier', str(args.pred_step_size_multiplier) ] )
+            writer.writerow(['buffer_size', str(args.buffer_size) ] )
+            writer.writerow(['run_obj_struct', str(args.run_obj_struct) ] )
+            writer.writerow(['R1_diag', str(args.R1_diag) ] )
+            writer.writerow(['R2_diag', str(args.R2_diag) ] )
+            writer.writerow(['Ncritic', str(args.Ncritic) ] )
+            writer.writerow(['gamma', str(args.gamma) ] )
+            writer.writerow(['critic_period_multiplier', str(args.critic_period_multiplier) ] )
+            writer.writerow(['critic_struct', str(args.critic_struct) ] )
+            writer.writerow(['actor_struct', str(args.actor_struct) ] )   
             writer.writerow(['t [s]', 'x [m]', 'y [m]', 'alpha [rad]', 'run_obj', 'accum_obj', 'v [m/s]', 'omega [rad/s]'] )
 
 # Do not display annoying warnings when print is on
-if is_print_sim_step:
+if args.is_print_sim_step:
     warnings.filterwarnings('ignore')
     
 my_logger = loggers.Logger3WRobotNI()
@@ -315,7 +315,7 @@ my_logger = loggers.Logger3WRobotNI()
 #----------------------------------------Main loop
 state_full_init = my_simulator.state_full
 
-if is_visualization:
+if args.is_visualization:
     my_animator = visuals.Animator3WRobotNI(objects=(my_simulator,
                                                      my_sys,
                                                      my_ctrl_nominal,
@@ -326,25 +326,25 @@ if is_visualization:
                                             pars=(state_init,
                                                   action_init,
                                                   t0,
-                                                  t1,
+                                                  args.t1,
                                                   state_full_init,
                                                   xMin,
                                                   xMax,
                                                   yMin,
                                                   yMax,
-                                                  ctrl_mode,
-                                                  action_manual,
+                                                  args.ctrl_mode,
+                                                  args.action_manual,
                                                   v_min,
                                                   omega_min,
                                                   v_max,
                                                   omega_max,
-                                                  Nruns,
-                                                  is_print_sim_step, is_log_data, 0, [], [xdistortion_x, ydistortion_y,distortion_sigma]))
+                                                  args.Nruns,
+                                                  args.is_print_sim_step, args.is_log_data, 0, [], [xdistortion_x, ydistortion_y,distortion_sigma]))
 
     anm = animation.FuncAnimation(my_animator.fig_sim,
                                   my_animator.animate,
                                   init_func=my_animator.init_anim,
-                                  blit=False, interval=dt/1e6, repeat=False)
+                                  blit=False, interval=args.dt/1e6, repeat=False)
     print("ALSO GOOD")
     my_animator.get_anm(anm)
     
@@ -366,7 +366,7 @@ else:
         
         t, state, observation, state_full = my_simulator.get_sim_step_data()
         
-        action = controllers.ctrl_selector(t, observation, action_manual, my_ctrl_nominal, my_ctrl_benchm, ctrl_mode)
+        action = controllers.ctrl_selector(t, observation, args.action_manual, my_ctrl_nominal, my_ctrl_benchm, args.ctrl_mode)
         
         my_sys.receive_action(action)
         my_ctrl_benchm.receive_sys_state(my_sys._state)
@@ -382,34 +382,34 @@ else:
         count_CALF = my_ctrl_benchm.D_count()
         count_N_CTRL = my_ctrl_benchm.get_N_CTRL_count()
 
-        if is_print_sim_step:
+        if args.is_print_sim_step:
             my_logger.print_sim_step(t, xCoord, yCoord, alpha, run_obj, accum_obj, action)
             
-        if is_log_data:
+        if args.is_log_data:
             my_logger.log_data_row(datafile, t, xCoord, yCoord, alpha, run_obj, accum_obj, action)
         
 
-        if t >= t1 or np.linalg.norm(observation[:2]) < 0.2:
+        if t >= args.t1 or np.linalg.norm(observation[:2]) < 0.2:
 
             # Reset simulator
             my_simulator.reset()
             
-            if ctrl_mode != 'nominal':
+            if args.ctrl_mode != 'nominal':
                 my_ctrl_benchm.reset(t0)
             else:
                 my_ctrl_nominal.reset(t0)
             
             accum_obj = 0 
 
-            if is_print_sim_step:
+            if args.is_print_sim_step:
                 print('.....................................Run {run:2d} done.....................................'.format(run = run_curr))
                 
             run_curr += 1
             
-            if run_curr > Nruns:
+            if run_curr > args.Nruns:
                 plt.close('all')
                 break
                 
-            if is_log_data:
+            if args.is_log_data:
                 datafile = datafiles[run_curr-1]
                  
