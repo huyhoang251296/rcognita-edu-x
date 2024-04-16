@@ -276,8 +276,11 @@ class Sys3WRobotNI(System):
         #####################################################################################################
         ############################# write down here math model of robot ###################################
         #####################################################################################################    
-             
-        return Dstate    
+        Dstate[0] = action[0] * np.cos(state[2])
+        Dstate[1] = action[0] * np.sin(state[2])
+        Dstate[2] = action[1]
+
+        return Dstate
  
     def _disturb_dyn(self, t, disturb):
         """

@@ -406,8 +406,7 @@ class ControllerOptimalPredictive:
         #####################################################################################################
         ################################# write down here cost-function #####################################
         #####################################################################################################
-
-        return run_obj
+        return 1
 
     def _actor_cost(self, action_sqn, observation):
         """
@@ -554,8 +553,31 @@ class N_CTRL:
         #####################################################################################################
         ########################## write down here nominal controller class #################################
         #####################################################################################################
+    def __init__(self):
+        # self.ctrl_bnds = ctrl_bnds # (k_rho, k_omega, k_beta)
+
+         # self.counter = 0
+
+        self.linear_speed = 2.5
+        self.angular_speed = 3
+        pass
+        
+    def pure_loop(self, observation):
+
+        rho = np.sqrt(observation[0]**2 + observation[1]**2)
+        alpha = -observation[2] + np.arctan2(observation[1], observation[0])
+        
+        # alpha = -observation[2] + np.arctan2(observation[0], observation[1])
+        beta = -observation[2] - alpha
+        
+        k_rho = 0.5
+        k_alpha = 20
+        k_beta = -0.1
+
+        w = k_alpha*alpha + k_beta*beta
+        v = k_rho*rho
+
+        if -np.pi < observation[2] <= -np.pi / 2 or np.pi / 2 < observation[2] <= np.pi:
+            v = -v
 
         return [v,w]
-
-
-
