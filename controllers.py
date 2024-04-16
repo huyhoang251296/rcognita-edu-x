@@ -563,16 +563,26 @@ class N_CTRL:
         pass
         
     def pure_loop(self, observation):
+        x_robot = observation[0]
+        y_robot = observation[1]
+        theta = observation[2]
+        x_goal = 0
+        y_goal = 0
+        theta_goal = 0
 
-        rho = np.sqrt(observation[0]**2 + observation[1]**2)
-        alpha = -observation[2] + np.arctan2(observation[1], observation[0])
+        error_x = x_goal - x_robot
+        error_y = y_goal - y_robot
+
+
+        rho = np.sqrt(error_x**2 + error_y**2)
+        alpha = -observation[2] + np.arctan2(error_y, error_x)
         
         # alpha = -observation[2] + np.arctan2(observation[0], observation[1])
         beta = -observation[2] - alpha
         
-        k_rho = 0.5
-        k_alpha = 20
-        k_beta = -0.1
+        k_rho = 2
+        k_alpha = 15
+        k_beta = -1.5
 
         w = k_alpha*alpha + k_beta*beta
         v = k_rho*rho
