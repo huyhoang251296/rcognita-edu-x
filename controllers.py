@@ -554,10 +554,6 @@ class N_CTRL:
         ########################## write down here nominal controller class #################################
         #####################################################################################################
     def __init__(self):
-        # self.ctrl_bnds = ctrl_bnds # (k_rho, k_omega, k_beta)
-
-         # self.counter = 0
-
         self.linear_speed = 2.5
         self.angular_speed = 3
         pass
@@ -572,13 +568,11 @@ class N_CTRL:
 
         error_x = x_goal - x_robot
         error_y = y_goal - y_robot
-
+        error_theta = theta_goal - theta
 
         rho = np.sqrt(error_x**2 + error_y**2)
-        alpha = -observation[2] + np.arctan2(error_y, error_x)
-        
-        # alpha = -observation[2] + np.arctan2(observation[0], observation[1])
-        beta = -observation[2] - alpha
+        alpha = -theta + np.arctan2(error_y, error_x)
+        beta = -theta - alpha
         
         k_rho = 2
         k_alpha = 15
@@ -587,7 +581,7 @@ class N_CTRL:
         w = k_alpha*alpha + k_beta*beta
         v = k_rho*rho
 
-        if -np.pi < observation[2] <= -np.pi / 2 or np.pi / 2 < observation[2] <= np.pi:
+        if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
             v = -v
 
         return [v,w]
