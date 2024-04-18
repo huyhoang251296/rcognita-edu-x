@@ -581,6 +581,12 @@ class N_CTRL:
         w = k_alpha*alpha + k_beta*beta
         v = k_rho*rho
 
+        while alpha > np.pi:
+            alpha -= 2* np.pi
+
+        while alpha < -np.pi:
+            alpha += 2* np.pi
+
         if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
             v = -v
 
