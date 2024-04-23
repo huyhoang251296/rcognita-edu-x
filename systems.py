@@ -299,3 +299,68 @@ class Sys3WRobotNI(System):
         observation = state
         return observation
 
+
+class Sys3WRobotStanley(System):
+    """
+    System class: 3-wheel robot with static actuators (the NI - non-holonomic integrator).
+    
+    
+    """ 
+    
+    def __init__(self, *args, **kwargs):
+        self.L = kwargs["L"]
+        del kwargs["L"]
+
+        super().__init__(*args, **kwargs)
+        
+        self.name = '3wrobotNI'
+
+        if self.is_disturb:
+            self.sigma_disturb = self.pars_disturb[0]
+            self.mu_disturb = self.pars_disturb[1]
+            self.tau_disturb = self.pars_disturb[2]
+    
+    def _create_trajectory(self, action):
+        R = self.L / np.tan(action[-1])
+        omega = action[0] / R
+        
+
+        time_series = np.linspace(1, np.pi, 40)
+        theta = omega*time_series # dependencies: omega
+
+        x_ref = R * np.cos(theta) # dependencies: R,  theta
+        y_ref = R * np.sin(theta) # dependencies: R,  theta
+        theta_ref = np.arctan(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.insert(theta_ref, 0, 0)
+
+        return np.hstack((x_ref, y_ref, theta_ref))
+
+    def _state_dyn(self, t, state, action, disturb=[]):   
+        Dstate = np.zeros(self.dim_state)
+        
+
+        #####################################################################################################
+        ############################# write down here math model of robot ###################################
+        #####################################################################################################    
+        Dstate[0] = action[0] * np.cos(state[2])
+        Dstate[1] = action[0] * np.sin(state[2])
+        Dstate[2] = (action[0] * np.tan(action[1])) / self.L 
+
+        return Dstate
+ 
+    def _disturb_dyn(self, t, disturb):
+        """
+        
+        
+        """       
+        Ddisturb = np.zeros(self.dim_disturb)
+        
+        for k in range(0, self.dim_disturb):
+            Ddisturb[k] = - self.tau_disturb[k] * ( disturb[k] + self.sigma_disturb[k] * (randn() + self.mu_disturb[k]) )
+                
+        return Ddisturb   
+    
+    def out(self, state, action=[]):
+        observation = np.zeros(self.dim_output)
+        observation = state
+        return observation

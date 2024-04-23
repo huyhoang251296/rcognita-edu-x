@@ -36,8 +36,9 @@ parser = argparse.ArgumentParser(description=description)
 
 parser.add_argument('--ctrl_mode', metavar='ctrl_mode', type=str,
                     choices=['MPC',
-                             "N_CTRL"],
-                    default='N_CTRL',
+                             "N_CTRL",
+                             "Stanley_CTRL"],
+                    default='Stanley_CTRL',
                     help='Control mode. Currently available: ' +
                     '----manual: manual constant control specified by action_manual; ' +
                     '----nominal: nominal controller, usually used to benchmark optimal controllers;' +                     
@@ -201,18 +202,20 @@ omega_min = -2.84
 omega_max = 2.84
 
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
+L = 1
 
 #----------------------------------------Initialization : : system
-my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
-                                     dim_state=dim_state,
-                                     dim_input=dim_input,
-                                     dim_output=dim_output,
-                                     dim_disturb=dim_disturb,
-                                     pars=[],
-                                     ctrl_bnds=ctrl_bnds,
-                                     is_dyn_ctrl=is_dyn_ctrl,
-                                     is_disturb=is_disturb,
-                                     pars_disturb=[])
+my_sys = systems.Sys3WRobotStanley(sys_type="diff_eqn", 
+                                   dim_state=dim_state,
+                                   dim_input=dim_input,
+                                   dim_output=dim_output,
+                                   dim_disturb=dim_disturb,
+                                   pars=[],
+                                   ctrl_bnds=ctrl_bnds,
+                                   is_dyn_ctrl=is_dyn_ctrl,
+                                   is_disturb=is_disturb,
+                                   pars_disturb=[],
+                                   L=L)
 
 observation_init = my_sys.out(state_init)
 
@@ -249,7 +252,8 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            observation_target = [],
                                            state_init=state_init,
                                            obstacle=[xdistortion_x, ydistortion_y,distortion_sigma],
-                                           seed=seed)
+                                           seed=seed,
+                                           L=L)
 
 
 my_ctrl_benchm = my_ctrl_opt_pred

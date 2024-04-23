@@ -180,7 +180,8 @@ class ControllerOptimalPredictive:
                  observation_target=[],
                  state_init=[],
                  obstacle=[],
-                 seed=1):
+                 seed=1,
+                 **kwargs):
         """
             Parameters
             ----------
@@ -355,6 +356,7 @@ class ControllerOptimalPredictive:
             self.Wmin = np.zeros(self.dim_critic) 
             self.Wmax = np.ones(self.dim_critic) 
         self.N_CTRL = N_CTRL()
+        self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
 
     def reset(self,t0):
         """
@@ -541,6 +543,10 @@ class ControllerOptimalPredictive:
                 
                 action = self.N_CTRL.pure_loop(observation)
             
+            elif self.mode == "Stanley_CTRL":
+                
+                action = self.Stanley_CTRL.pure_loop(observation)
+            
             self.action_curr = action
             
             return action    
@@ -589,5 +595,71 @@ class N_CTRL:
 
         if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
             v = -v
+
+        return [v,w]
+
+
+class Stanley_CTRL:
+
+        #####################################################################################################
+        ########################## write down here nominal controller class #################################
+        #####################################################################################################
+    def __init__(self, init_state, L):
+        self.linear_speed = 2
+        self.fixed_phi = np.pi / 6
+        # self.fixed_phi = np.pi / 8
+        # self.fixed_phi = np.linspace(np.pi/6, np.pi/3, 50)
+        self.L = L
+        self._create_trajectory(init_state[0], init_state[1])
+        pass
+
+    def _create_trajectory(self, x_initial=-3, y_initial=3):
+        R = self.L / np.tan(self.fixed_phi)
+        omega = self.linear_speed / R
+        
+
+        time_series = np.linspace(1, 2*np.pi, 50)
+        theta = omega*time_series # dependencies: omega
+
+        x_ref = R * np.cos(theta) # dependencies: R,  theta
+        y_ref = R * np.sin(theta) # dependencies: R,  theta
+
+        x_ref = x_ref + (x_initial - x_ref[0])
+        y_ref = y_ref + (y_initial - y_ref[0])
+
+        theta_ref = np.arctan(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.insert(theta_ref, 0, 0)
+
+        self.trajectory = np.vstack((x_ref, y_ref, theta))
+        return 
+        
+    def pure_loop(self, observation):
+        x_robot = observation[0]
+        y_robot = observation[1]
+        theta = observation[2]
+        
+        v = self.linear_speed
+
+        x_f = x_robot + self.L * np.cos(theta)
+        y_f = y_robot + self.L * np.sin(theta)
+
+        # print("self.trajectory[:1,:].shape", self.trajectory.shape)
+        distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+        print("distance_2_trajectory value", np.min(distance_2_trajectory))
+        print("distance_2_trajectory arg", np.argmin(distance_2_trajectory))
+        
+        nearest_point = self.trajectory.T[np.argmin(distance_2_trajectory)]
+
+        e_fa = (nearest_point[1] - y_f)*np.cos(theta) - (nearest_point[0] - x_f)*np.sin(theta)
+
+        print("X: {} - Y: {} - theta: {} - e: {}".format(
+            *nearest_point,
+            e_fa
+        ))
+
+        # k = 0.1 # self.fixed_phi = np.pi / 6
+        k = 4
+        # k = 2
+        w = theta - nearest_point[2] + np.arctan(k*e_fa / v)
 
         return [v,w]

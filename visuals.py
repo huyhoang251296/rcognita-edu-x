@@ -147,6 +147,14 @@ class Animator3WRobotNI(Animator):
         self.axs_xy_plane.plot([0, 0], [yMin, yMax], 'k--', lw=0.75)   # Help line
         self.line_traj, = self.axs_xy_plane.plot(xCoord0, yCoord0, 'b--', lw=0.5)
 
+        # plot trajectory
+        print("ctrl_benchmarking", hasattr(self.ctrl_benchmarking, "Stanley_CTRL"))
+        if hasattr(self.ctrl_benchmarking, "Stanley_CTRL") and hasattr(self.ctrl_benchmarking.Stanley_CTRL, "trajectory"):
+            print("plot trajectory")
+            self.axs_xy_plane.plot(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0],
+                                   self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
+                                   ".-")
+
 
         cirlce_target = plt.Circle((0, 0), radius=0.2, color='y', fill=True, lw=2)
         self.axs_xy_plane.add_artist(cirlce_target)
@@ -182,6 +190,7 @@ class Animator3WRobotNI(Animator):
         
         text_accum_obj = r'$\int \mathrm{{Run.\,obj.}} \,\mathrm{{d}}t$ = {accum_obj:2.3f}'.format(accum_obj = 0)
         self.text_accum_obj_handle = self.fig_sim.text(0.05, 0.5, text_accum_obj, horizontalalignment='left', verticalalignment='center')
+
         self.line_run_obj, = self.axs_cost.plot(t0, run_obj, 'r-', lw=0.5, label='Run. obj.')
         self.line_accum_obj, = self.axs_cost.plot(t0, 0, 'g-', lw=0.5, label=r'$\int \mathrm{Run.\,obj.} \,\mathrm{d}t$')
         self.axs_cost.legend(fancybox=True, loc='upper right')
