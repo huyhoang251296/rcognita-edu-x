@@ -205,17 +205,29 @@ ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
 L = 1
 
 #----------------------------------------Initialization : : system
-my_sys = systems.Sys3WRobotStanley(sys_type="diff_eqn", 
-                                   dim_state=dim_state,
-                                   dim_input=dim_input,
-                                   dim_output=dim_output,
-                                   dim_disturb=dim_disturb,
-                                   pars=[],
-                                   ctrl_bnds=ctrl_bnds,
-                                   is_dyn_ctrl=is_dyn_ctrl,
-                                   is_disturb=is_disturb,
-                                   pars_disturb=[],
-                                   L=L)
+if args.ctrl_mode == "Stanley_CTRL":
+    my_sys = systems.Sys3WRobotStanley(sys_type="diff_eqn", 
+                                    dim_state=dim_state,
+                                    dim_input=dim_input,
+                                    dim_output=dim_output,
+                                    dim_disturb=dim_disturb,
+                                    pars=[],
+                                    ctrl_bnds=ctrl_bnds,
+                                    is_dyn_ctrl=is_dyn_ctrl,
+                                    is_disturb=is_disturb,
+                                    pars_disturb=[],
+                                    L=L)
+else:
+    my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
+                                    dim_state=dim_state,
+                                    dim_input=dim_input,
+                                    dim_output=dim_output,
+                                    dim_disturb=dim_disturb,
+                                    pars=[],
+                                    ctrl_bnds=ctrl_bnds,
+                                    is_dyn_ctrl=is_dyn_ctrl,
+                                    is_disturb=is_disturb,
+                                    pars_disturb=[])
 
 observation_init = my_sys.out(state_init)
 

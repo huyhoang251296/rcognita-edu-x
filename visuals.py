@@ -149,7 +149,9 @@ class Animator3WRobotNI(Animator):
 
         # plot trajectory
         print("ctrl_benchmarking", hasattr(self.ctrl_benchmarking, "Stanley_CTRL"))
-        if hasattr(self.ctrl_benchmarking, "Stanley_CTRL") and hasattr(self.ctrl_benchmarking.Stanley_CTRL, "trajectory"):
+        if self.sys.name == "Sys3WRobotStanley" and \
+            hasattr(self.ctrl_benchmarking, "Stanley_CTRL") and \
+            hasattr(self.ctrl_benchmarking.Stanley_CTRL, "trajectory"):
             print("plot trajectory")
             self.axs_xy_plane.plot(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0],
                                    self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],

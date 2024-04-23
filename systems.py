@@ -313,7 +313,7 @@ class Sys3WRobotStanley(System):
 
         super().__init__(*args, **kwargs)
         
-        self.name = '3wrobotNI'
+        self.name = 'Sys3WRobotStanley'
 
         if self.is_disturb:
             self.sigma_disturb = self.pars_disturb[0]

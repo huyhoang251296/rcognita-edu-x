@@ -606,38 +606,16 @@ class Stanley_CTRL:
         #####################################################################################################
     def __init__(self, init_state, L):
         self.linear_speed = 2
-        self.fixed_phi = np.pi / 6
-        # self.fixed_phi = np.pi / 8
-        # self.fixed_phi = np.linspace(np.pi/6, np.pi/3, 50)
         self.L = L
         self._create_trajectory(init_state[0], init_state[1])
         pass
 
-    # def _create_trajectory(self, x_initial=-3, y_initial=3):
-    #     R = self.L / np.tan(self.fixed_phi)
-    #     omega = self.linear_speed / R
-        
-
-    #     time_series = np.linspace(1, 2*np.pi, 50)
-    #     theta = omega*time_series # dependencies: omega
-
-    #     x_ref = R * np.cos(theta) # dependencies: R,  theta
-    #     y_ref = R * np.sin(theta) # dependencies: R,  theta
-
-    #     x_ref = x_ref + (x_initial - x_ref[0])
-    #     y_ref = y_ref + (y_initial - y_ref[0])
-
-    #     theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
-    #     theta_ref = np.insert(theta_ref, 0, theta_ref[0])
-
-    #     self.trajectory = np.vstack((x_ref, y_ref, theta_ref))
-    #     return 
     def _create_trajectory(self, x_initial=-3, y_initial=3):
         x_ref = np.linspace(0, 10, 200)
         y_ref = 2*np.sin(2 * np.pi * x_ref * 0.15)
 
-        theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
-        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref))
+        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref))
         theta_ref = np.append(theta_ref, theta_ref[-1])
 
         x_ref = x_ref + (x_initial - x_ref[0])
@@ -661,14 +639,5 @@ class Stanley_CTRL:
 
         k = 0.2
         phi = nearest_point[2] - theta + np.arctan(k*e_fa / v)
-        
-        print("distance_2_trajectory value", np.min(distance_2_trajectory))
-        print("distance_2_trajectory arg", np.argmin(distance_2_trajectory))
-        print("ref_X: {:.2} - ref_Y: {:.2} - ref_theta: {:.2} - e: {:.2} - phi: {:.2} - curr_theta: {:.2}".format(
-            *nearest_point,
-            e_fa,
-            phi,
-            theta
-        ))
 
         return [v, phi]
