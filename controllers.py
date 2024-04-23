@@ -613,25 +613,37 @@ class Stanley_CTRL:
         self._create_trajectory(init_state[0], init_state[1])
         pass
 
-    def _create_trajectory(self, x_initial=-3, y_initial=3):
-        R = self.L / np.tan(self.fixed_phi)
-        omega = self.linear_speed / R
+    # def _create_trajectory(self, x_initial=-3, y_initial=3):
+    #     R = self.L / np.tan(self.fixed_phi)
+    #     omega = self.linear_speed / R
         
 
-        time_series = np.linspace(1, 2*np.pi, 50)
-        theta = omega*time_series # dependencies: omega
+    #     time_series = np.linspace(1, 2*np.pi, 50)
+    #     theta = omega*time_series # dependencies: omega
 
-        x_ref = R * np.cos(theta) # dependencies: R,  theta
-        y_ref = R * np.sin(theta) # dependencies: R,  theta
+    #     x_ref = R * np.cos(theta) # dependencies: R,  theta
+    #     y_ref = R * np.sin(theta) # dependencies: R,  theta
+
+    #     x_ref = x_ref + (x_initial - x_ref[0])
+    #     y_ref = y_ref + (y_initial - y_ref[0])
+
+    #     theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+    #     theta_ref = np.insert(theta_ref, 0, theta_ref[0])
+
+    #     self.trajectory = np.vstack((x_ref, y_ref, theta_ref))
+    #     return 
+    def _create_trajectory(self, x_initial=-3, y_initial=3):
+        x_ref = np.linspace(0, 10, 200)
+        y_ref = 2*np.sin(2 * np.pi * x_ref * 0.15)
+
+        theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.append(theta_ref, theta_ref[-1])
 
         x_ref = x_ref + (x_initial - x_ref[0])
         y_ref = y_ref + (y_initial - y_ref[0])
 
-        theta_ref = np.arctan(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
-        theta_ref = np.insert(theta_ref, 0, 0)
-
-        self.trajectory = np.vstack((x_ref, y_ref, theta))
-        return 
+        self.trajectory = np.vstack((x_ref, y_ref, theta_ref))
         
     def pure_loop(self, observation):
         x_robot = observation[0]
@@ -643,23 +655,20 @@ class Stanley_CTRL:
         x_f = x_robot + self.L * np.cos(theta)
         y_f = y_robot + self.L * np.sin(theta)
 
-        # print("self.trajectory[:1,:].shape", self.trajectory.shape)
         distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
-        print("distance_2_trajectory value", np.min(distance_2_trajectory))
-        print("distance_2_trajectory arg", np.argmin(distance_2_trajectory))
-        
         nearest_point = self.trajectory.T[np.argmin(distance_2_trajectory)]
-
         e_fa = (nearest_point[1] - y_f)*np.cos(theta) - (nearest_point[0] - x_f)*np.sin(theta)
 
-        print("X: {} - Y: {} - theta: {} - e: {}".format(
+        k = 0.2
+        phi = nearest_point[2] - theta + np.arctan(k*e_fa / v)
+        
+        print("distance_2_trajectory value", np.min(distance_2_trajectory))
+        print("distance_2_trajectory arg", np.argmin(distance_2_trajectory))
+        print("ref_X: {:.2} - ref_Y: {:.2} - ref_theta: {:.2} - e: {:.2} - phi: {:.2} - curr_theta: {:.2}".format(
             *nearest_point,
-            e_fa
+            e_fa,
+            phi,
+            theta
         ))
 
-        # k = 0.1 # self.fixed_phi = np.pi / 6
-        k = 4
-        # k = 2
-        w = theta - nearest_point[2] + np.arctan(k*e_fa / v)
-
-        return [v,w]
+        return [v, phi]

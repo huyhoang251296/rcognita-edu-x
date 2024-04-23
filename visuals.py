@@ -153,7 +153,17 @@ class Animator3WRobotNI(Animator):
             print("plot trajectory")
             self.axs_xy_plane.plot(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0],
                                    self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
-                                   ".-")
+                                   "r-",
+                                   lw=0.75)
+            
+            # for i, (x, y, theta) in enumerate(zip(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0], 
+            #                                       self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
+            #                                       self.ctrl_benchmarking.Stanley_CTRL.trajectory[2])):
+            #     # plt.arrow(x, y, np.sin(theta), np.cos(theta), width=0.01)
+            #     plt.annotate(f"{i}", 
+            #                  xytext=(x, y), 
+            #                  xy=(x+np.cos(theta), y+np.sin(theta)), arrowprops=dict(arrowstyle="->"))
+
 
 
         cirlce_target = plt.Circle((0, 0), radius=0.2, color='y', fill=True, lw=2)
