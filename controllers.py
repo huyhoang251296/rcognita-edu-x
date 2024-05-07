@@ -177,7 +177,7 @@ class ControllerOptimalPredictive:
                  critic_struct='quad-nomix',
                  run_obj_struct='quadratic',
                  run_obj_pars=[],
-                 observation_target=[],
+                 observation_target=[0, 0, np.pi],
                  state_init=[],
                  obstacle=[],
                  seed=1,
@@ -541,7 +541,7 @@ class ControllerOptimalPredictive:
 
             elif self.mode == "N_CTRL":
                 
-                action = self.N_CTRL.pure_loop(observation)
+                action = self.N_CTRL.pure_loop(observation, self.observation_target)
             
             elif self.mode == "Stanley_CTRL":
                 
@@ -564,13 +564,13 @@ class N_CTRL:
         self.angular_speed = 3
         pass
         
-    def pure_loop(self, observation):
+    def pure_loop(self, observation, goal=[0, 0, 0]):
         x_robot = observation[0]
         y_robot = observation[1]
         theta = observation[2]
-        x_goal = 0
-        y_goal = 0
-        theta_goal = 0
+        x_goal = goal[0]
+        y_goal = goal[1]
+        theta_goal = goal[2]
 
         error_x = x_goal - x_robot
         error_y = y_goal - y_robot
@@ -578,7 +578,7 @@ class N_CTRL:
 
         rho = np.sqrt(error_x**2 + error_y**2)
         alpha = -theta + np.arctan2(error_y, error_x)
-        beta = -theta - alpha
+        beta = error_theta - alpha
         
         k_rho = 2
         k_alpha = 15
@@ -635,9 +635,9 @@ class Stanley_CTRL:
 
         distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
         nearest_point = self.trajectory.T[np.argmin(distance_2_trajectory)]
-        e_fa = (nearest_point[1] - y_f)*np.cos(theta) - (nearest_point[0] - x_f)*np.sin(theta)
+        e_fa = (nearest_point[1] - y_f)*np.cos(nearest_point[2]) - (nearest_point[0] - x_f)*np.sin(nearest_point[2])
 
-        k = 0.2
+        k = 0.05
         phi = nearest_point[2] - theta + np.arctan(k*e_fa / v)
 
         return [v, phi]

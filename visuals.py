@@ -278,7 +278,7 @@ class Animator3WRobotNI(Animator):
             action = self.ctrl_selector(t, observation, self.action_manual, self.ctrl_nominal, self.ctrl_benchmarking, self.ctrl_mode)
         
             self.sys.receive_action(action)
-            self.ctrl_benchmarking.receive_sys_state(self.sys._state) 
+            self.ctrl_benchmarking.receive_sys_state(self.sys._state)
             self.ctrl_benchmarking.upd_accum_obj(observation, action)
             
             run_obj = self.ctrl_benchmarking.run_obj(observation, action)
@@ -321,7 +321,7 @@ class Animator3WRobotNI(Animator):
     
 
         # Run done
-        if t >= self.t1 or np.linalg.norm(observation[:2]) < 0.2:
+        if t >= self.t1: # or np.linalg.norm(observation[:2]) < 0.2:
             if self.is_print_sim_step:
                 print('.....................................Run {run:2d} done.....................................'.format(run = self.run_curr))  
             

@@ -320,20 +320,6 @@ class Sys3WRobotStanley(System):
             self.mu_disturb = self.pars_disturb[1]
             self.tau_disturb = self.pars_disturb[2]
     
-    def _create_trajectory(self, action):
-        R = self.L / np.tan(action[-1])
-        omega = action[0] / R
-        
-
-        time_series = np.linspace(1, np.pi, 40)
-        theta = omega*time_series # dependencies: omega
-
-        x_ref = R * np.cos(theta) # dependencies: R,  theta
-        y_ref = R * np.sin(theta) # dependencies: R,  theta
-        theta_ref = np.arctan(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
-        theta_ref = np.insert(theta_ref, 0, 0)
-
-        return np.hstack((x_ref, y_ref, theta_ref))
 
     def _state_dyn(self, t, state, action, disturb=[]):   
         Dstate = np.zeros(self.dim_state)
@@ -343,7 +329,7 @@ class Sys3WRobotStanley(System):
         #####################################################################################################    
         Dstate[0] = action[0] * np.cos(state[2])
         Dstate[1] = action[0] * np.sin(state[2])
-        Dstate[2] = (action[0] * np.tan(action[1])) / self.L 
+        Dstate[2] = (action[0] * np.tan(action[1])) / self.L
 
         return Dstate
  

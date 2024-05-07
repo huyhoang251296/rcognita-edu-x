@@ -202,7 +202,7 @@ omega_min = -2.84
 omega_max = 2.84
 
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
-L = 1
+L = 0.7
 
 #----------------------------------------Initialization : : system
 if args.ctrl_mode == "Stanley_CTRL":
@@ -261,7 +261,7 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            critic_struct = args.critic_struct,
                                            run_obj_struct = args.run_obj_struct,
                                            run_obj_pars = [R1],
-                                           observation_target = [],
+                                           observation_target = [1, 1, 1.57],
                                            state_init=state_init,
                                            obstacle=[xdistortion_x, ydistortion_y,distortion_sigma],
                                            seed=seed,
