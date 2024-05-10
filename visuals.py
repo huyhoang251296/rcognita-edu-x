@@ -166,14 +166,10 @@ class Animator3WRobotNI(Animator):
             #                  xytext=(x, y), 
             #                  xy=(x+np.cos(theta), y+np.sin(theta)), arrowprops=dict(arrowstyle="->"))
 
-
-
         cirlce_target = plt.Circle((0, 0), radius=0.2, color='y', fill=True, lw=2)
         self.axs_xy_plane.add_artist(cirlce_target)
         self.text_target_handle = self.axs_xy_plane.text(0.88, 0.9, 'Target',
-                                                   horizontalalignment='left', verticalalignment='center', transform=self.axs_xy_plane.transAxes)        
-
-
+                                                   horizontalalignment='left', verticalalignment='center', transform=self.axs_xy_plane.transAxes)
 
         self.robot_marker = RobotMarker(angle=alpha_deg0)
         text_time = 't = {time:2.3f}'.format(time = t0)

@@ -9,6 +9,7 @@ from utilities import uptria2vec
 from utilities import push_vec
 import models
 import numpy as np
+import numpy.ma as ma
 import scipy as sp
 from numpy.random import rand
 from scipy.optimize import minimize
@@ -41,7 +42,7 @@ def ctrl_selector(t, observation, action_manual, ctrl_nominal, ctrl_benchmarking
     
     if mode=='manual': 
         action = action_manual
-    elif mode=='nominal': 
+    elif mode=='nominal':
         action = ctrl_nominal.compute_action(t, observation)
     else: # Controller for benchmakring
         action = ctrl_benchmarking.compute_action(t, observation)
@@ -391,10 +392,7 @@ class ControllerOptimalPredictive:
     
     def upd_accum_obj(self, observation, action):
         """
-        Sample-to-sample accumulated (summed up or integrated) running objective. This can be handy to evaluate the performance of the agent.
-        If the agent succeeded to stabilize the system, ``accum_obj`` would converge to a finite value which is the performance mark.
-        The smaller, the better (depends on the problem specification of course - you might want to maximize cost instead).
-        
+        Sample-to-sample accumulated (summed up or integrated) running objectseed        
         """
         self.accum_obj_val += self.run_obj(observation, action)*self.sampling_time
                  
@@ -580,9 +578,15 @@ class N_CTRL:
         alpha = -theta + np.arctan2(error_y, error_x)
         beta = error_theta - alpha
         
-        k_rho = 2
-        k_alpha = 15
-        k_beta = -1.5
+        # # python simulation
+        # k_rho = 2
+        # k_alpha = 15
+        # k_beta = -1.5
+
+        # Parameters for gazebo
+        k_rho = 0.15 # 0.2
+        k_alpha = 0.2
+        k_beta = -.15
 
         w = k_alpha*alpha + k_beta*beta
         v = k_rho*rho
@@ -596,6 +600,10 @@ class N_CTRL:
         if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
             v = -v
 
+        print("[Controllers] observation: {} - goal: {}".format(observation, goal))
+        print("[Controllers] v: {} - w: {}".format(v, w))
+        print("[Controllers] rho: {} - alpha: {} - beta: {}".format(rho, alpha, beta))
+        
         return [v,w]
 
 
@@ -608,9 +616,14 @@ class Stanley_CTRL:
         self.linear_speed = 2
         self.L = L
         self._create_trajectory(init_state[0], init_state[1])
+        self.last_nearest_point = 0
         pass
 
     def _create_trajectory(self, x_initial=-3, y_initial=3):
+        # self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
+        self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
+
+    def _create_trajectory_sine(self, x_initial=-3, y_initial=3):
         x_ref = np.linspace(0, 10, 200)
         y_ref = 2*np.sin(2 * np.pi * x_ref * 0.15)
 
@@ -621,7 +634,22 @@ class Stanley_CTRL:
         x_ref = x_ref + (x_initial - x_ref[0])
         y_ref = y_ref + (y_initial - y_ref[0])
 
-        self.trajectory = np.vstack((x_ref, y_ref, theta_ref))
+        return np.vstack((x_ref, y_ref, theta_ref))
+
+    def _create_trajectory_inf(self, x_initial=-3, y_initial=3):
+        t = np.linspace(0, np.pi * 2, 30)
+        scale = 10*2 / (3 - np.cos(2*t))
+        x_ref = scale * np.cos(t)
+        y_ref = scale * np.sin(2*t) / 2
+
+        # theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.append(theta_ref, theta_ref[-1])
+
+        x_ref = x_ref + (x_initial - x_ref[0])
+        y_ref = y_ref + (y_initial - y_ref[0])
+
+        return np.vstack((x_ref, y_ref, theta_ref))
         
     def pure_loop(self, observation):
         x_robot = observation[0]
@@ -633,8 +661,39 @@ class Stanley_CTRL:
         x_f = x_robot + self.L * np.cos(theta)
         y_f = y_robot + self.L * np.sin(theta)
 
-        distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
-        nearest_point = self.trajectory.T[np.argmin(distance_2_trajectory)]
+        # distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+        methods = "nearest_temp"
+        if methods == "simple":
+            distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+        elif methods == "arc_length":
+            r = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+            theta_ref = self.trajectory[2,:].T
+            theta_ref[theta_ref < 0] += 2 * np.pi
+            target = theta
+            target = target + 2*np.pi if target < 0 else target
+            distance_2_trajectory = np.square(theta_ref - target) * r
+
+        elif methods == "nearest_temp":
+            diff = self.trajectory[:2,:].T - np.array((x_f, y_f))
+            distance_2_trajectory = np.linalg.norm(diff, axis=1)
+            mask = np.ones_like(distance_2_trajectory)
+
+            gain = 3
+            upper_lim = self.last_nearest_point + gain
+            lower_lim = self.last_nearest_point - gain
+            if self.last_nearest_point == 0:
+                mask = 0
+            elif upper_lim >= len(distance_2_trajectory):
+                tmp = upper_lim - len(distance_2_trajectory)
+                mask[max(0, lower_lim):] = 0
+                mask[:tmp] = 0
+            else:
+                mask[max(0, lower_lim):upper_lim] = 0
+            distance_2_trajectory = ma.masked_array(distance_2_trajectory, mask=mask)
+            
+        self.last_nearest_point = np.argmin(distance_2_trajectory)
+        print("self.last_nearest_point: ", self.last_nearest_point, distance_2_trajectory.shape)
+        nearest_point = self.trajectory.T[self.last_nearest_point]
         e_fa = (nearest_point[1] - y_f)*np.cos(nearest_point[2]) - (nearest_point[0] - x_f)*np.sin(nearest_point[2])
 
         k = 0.05
