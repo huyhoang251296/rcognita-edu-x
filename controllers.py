@@ -560,8 +560,20 @@ class N_CTRL:
     def __init__(self):
         self.linear_speed = 2.5
         self.angular_speed = 3
-        pass
+
         
+        # python simulation
+        self.k_rho = 2
+        self.k_alpha = 15
+        self.k_beta = -1.5
+        pass
+    
+    def update_kappa(self, k_rho, k_alpha, k_beta):
+        # Parameters for gazebo
+        self.k_rho = k_rho
+        self.k_alpha = k_alpha
+        self.k_beta = k_beta
+
     def pure_loop(self, observation, goal=[0, 0, 0]):
         x_robot = observation[0]
         y_robot = observation[1]
@@ -577,19 +589,9 @@ class N_CTRL:
         rho = np.sqrt(error_x**2 + error_y**2)
         alpha = -theta + np.arctan2(error_y, error_x)
         beta = error_theta - alpha
-        
-        # # python simulation
-        # k_rho = 2
-        # k_alpha = 15
-        # k_beta = -1.5
 
-        # Parameters for gazebo
-        k_rho = 0.15 # 0.2
-        k_alpha = 0.2
-        k_beta = -.15
-
-        w = k_alpha*alpha + k_beta*beta
-        v = k_rho*rho
+        w = self.k_alpha*alpha + self.k_beta*beta
+        v = self.k_rho*rho
 
         while alpha > np.pi:
             alpha -= 2* np.pi
@@ -613,15 +615,15 @@ class Stanley_CTRL:
         ########################## write down here nominal controller class #################################
         #####################################################################################################
     def __init__(self, init_state, L):
-        self.linear_speed = 2
+        self.linear_speed = 0.22
         self.L = L
         self._create_trajectory(init_state[0], init_state[1])
         self.last_nearest_point = 0
         pass
 
     def _create_trajectory(self, x_initial=-3, y_initial=3):
-        # self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
-        self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
+        self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
+        # self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
 
     def _create_trajectory_sine(self, x_initial=-3, y_initial=3):
         x_ref = np.linspace(0, 10, 200)

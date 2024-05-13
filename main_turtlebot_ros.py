@@ -27,10 +27,10 @@ import argparse
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Twist
-from std_srvs.srv import Empty
-from transformations import euler_from_quaternion
+
 import transformations as tftr 
 import threading
+import math
 
 
 class ROS_preset:
@@ -38,7 +38,7 @@ class ROS_preset:
                  my_ctrl_nominal, my_sys, my_ctrl_benchmarking,
                  my_logger=None, datafile=None):
         
-        self.RATE = rospy.get_param('/rate', 10)
+        self.RATE = rospy.get_param('/rate', 20)
         self.lock = threading.Lock()
         
         #Initialization
@@ -49,6 +49,13 @@ class ROS_preset:
         
         self.ctrl_nominal = my_ctrl_nominal
         self.ctrl_benchm = my_ctrl_benchmarking
+
+        # Parameters for gazebo
+        k_rho = 0.15 # 0.2
+        k_alpha = 0.17
+        k_beta = -.05
+
+        self.ctrl_benchm.N_CTRL.update_kappa(k_rho, k_alpha, k_beta)
         
         self.dt = 0.0
         self.time_start = 0.0
@@ -71,10 +78,8 @@ class ROS_preset:
         self.prev_theta = 0
         self.new_theta = 0
         
-        theta_goal = self.state_goal[2]
-
         self.ctrl_bnds = np.array([
-                [-2.2, 2.2],  # linear velocity limit
+                [-.22, .22],  # linear velocity limit
                 [-2.84, 2.84] # angular velocity limit
             ])
         
@@ -113,20 +118,27 @@ class ROS_preset:
             [np.sin(theta_goal), np.cos(theta_goal), 0],
             [0, 0, 1]
         ])
-        
-        state_matrix = np.vstack([self.state_goal[0] - x, self.state_goal[1] - y, 0])  # [x, y, 0] -- column   
+            
+        state_matrix = np.vstack([self.state_goal[0], self.state_goal[1], 0])  # [x, y, 0] -- column   
+        # state_matrix = np.vstack([self.state_goal[0] - x, self.state_goal[1] - y, 0])  # [x, y, 0] -- column   
         
         # Compute Transformation matrix 
-        
-        # t_matrix = np.hstack((np.vstack((rotation_matrix, [0, 0])), state_matrix)) # Complete
         self.t_matrix = np.block([
             [rotation_matrix, state_matrix],
-            [0, 0, 0, 1]])
+            [np.array([0, 0, 0, 1])]
+            ])
         
         # Complete rotation counter for turtlebot3
-        # self.rotation_counter = - int(theta / 2 * np.pi)
-        ''' Your solution goes here (rotation_counter) '''
-        self.rotation_counter = 0
+        ''' Your solution goes here (rotation_counter) '''        
+        if math.copysign(1, self.prev_theta) != math.copysign(1, theta) and \
+            abs(self.prev_theta) > np.pi:
+            if math.copysign(1, self.prev_theta) == -1:
+                self.rotation_counter -= 1
+            
+            else:
+                self.rotation_counter += 1
+
+        print("self.rotation_counter:", self.rotation_counter)
         
         self.prev_theta = theta
         theta = theta + 2 * np.pi * self.rotation_counter
@@ -187,20 +199,13 @@ class ROS_preset:
             if is_log_data:
                 self.logger.log_data_row(self.datafiles[0], t, self.new_state[0], self.new_state[1], self.new_state[2], run_obj, accum_obj, action)
                 
-
-            # if is_print_sim_step:
-            #     self.logger.print_sim_step('''t, xCoord, yCoord ...''')
-                
-            # if is_print_sim_step:
-            #     self.logger.log_data_row('''t, xCoord, yCoord ...''')
-            
             self.ctrl_benchm.receive_sys_state(self.new_state)
             
             # Generate ROSmsg from action
             velocity.linear.x = action[0]
             velocity.angular.z = action[1]
             self.pub_cmd_vel.publish(velocity)
-            print("velocity: ", velocity)
+            
             rate.sleep()
            
         rospy.loginfo('Task completed or interrupted!')
@@ -261,13 +266,13 @@ parser.add_argument('--state_init', type=str, nargs="+", metavar='state_init',
                     'dimension is environment-specific!')
 parser.add_argument('--goal_robot_pose_x', type=float,
                     default=3.0,
-                    help='Initial x-coordinate of the robot pose.')
+                    help='x-coordinate of the robot pose.')
 parser.add_argument('--goal_robot_pose_y', type=float,
                     default=3.0,
-                    help='Initial y-coordinate of the robot pose.')
+                    help='y-coordinate of the robot pose.')
 parser.add_argument('--goal_robot_pose_theta', type=float,
-                    default=1.57,
-                    help='Initial orientation angle (in radians) of the robot pose.')
+                    default=0.001,
+                    help='orientation angle (in radians) of the robot pose.')
 parser.add_argument('--is_log_data', type=bool,
                     default=True,
                     help='Flag to log data into a data file. Data are stored in simdata folder.')
@@ -401,7 +406,23 @@ omega_max = 5
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
 
 #----------------------------------------Initialization : : system
-my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
+L = 0.5
+
+#----------------------------------------Initialization : : system
+if args.ctrl_mode == "Stanley_CTRL":
+    my_sys = systems.Sys3WRobotStanley(sys_type="diff_eqn", 
+                                    dim_state=dim_state,
+                                    dim_input=dim_input,
+                                    dim_output=dim_output,
+                                    dim_disturb=dim_disturb,
+                                    pars=[],
+                                    ctrl_bnds=ctrl_bnds,
+                                    is_dyn_ctrl=is_dyn_ctrl,
+                                    is_disturb=is_disturb,
+                                    pars_disturb=[],
+                                    L=L)
+else:
+    my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
                                     dim_state=dim_state,
                                     dim_input=dim_input,
                                     dim_output=dim_output,
@@ -451,7 +472,7 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            L=0.5)
 
 my_ctrl_benchm = my_ctrl_opt_pred
-    
+
 #----------------------------------------Initialization : : simulator
 my_simulator = simulator.Simulator(sys_type = "diff_eqn",
                                    closed_loop_rhs = my_sys.closed_loop_rhs,
@@ -517,11 +538,8 @@ if is_print_sim_step:
 my_logger = loggers.Logger3WRobotNI()
 
 #----------------------------------------Main loop
-if is_visualization:
-    
-    state_full_init = my_simulator.state_full
-    
-    ros_preset = ROS_preset(ctrl_mode,
+
+ros_preset = ROS_preset(ctrl_mode,
                         state_goal=[args.goal_robot_pose_x, args.goal_robot_pose_y, args.goal_robot_pose_theta],
                         state_init=state_init,
                         my_sys=my_sys,
@@ -530,56 +548,4 @@ if is_visualization:
                         my_logger=my_logger,
                         datafile=datafiles
                         )
-    ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)
-else:   
-    run_curr = 1
-    datafile = datafiles[0]
-    
-    while True:
-        
-        my_simulator.sim_step()
-        
-        t, state, observation, state_full = my_simulator.get_sim_step_data()
-        
-        action = controllers.ctrl_selector(t, observation, action_manual, my_ctrl_nominal, my_ctrl_benchm, ctrl_mode)
-        
-        my_sys.receive_action(action)
-        my_ctrl_benchm.receive_sys_state(my_sys._state)
-        my_ctrl_benchm.upd_accum_obj(observation, action)
-        
-        xCoord = state_full[0]
-        yCoord = state_full[1]
-        alpha = state_full[2]
-        
-        stage_obj = my_ctrl_benchm.stage_obj(observation, action)
-        accum_obj = my_ctrl_benchm.accum_obj_val
-        
-        if is_print_sim_step:
-            my_logger.print_sim_step(t, xCoord, yCoord, alpha, stage_obj, accum_obj, action)
-            
-        if is_log_data:
-            my_logger.log_data_row(self.datafiles, t, xCoord, yCoord, alpha, stage_obj, accum_obj, action)
-        
-        if t >= t1:  
-            if is_print_sim_step:
-                print('.....................................Run {run:2d} done.....................................'.format(run = run_curr))
-                
-            run_curr += 1
-            
-            if run_curr > Nruns:
-                break
-                
-            if is_log_data:
-                datafile = datafiles[run_curr-1]
-            
-            # Reset simulator
-            my_simulator.status = 'running'
-            my_simulator.t = t0
-            my_simulator.observation = state_full_init
-            
-            if ctrl_mode != 'nominal':
-                my_ctrl_benchm.reset(t0)
-            else:
-                my_ctrl_nominal.reset(t0)
-            
-            accum_obj = 0  
+ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)
