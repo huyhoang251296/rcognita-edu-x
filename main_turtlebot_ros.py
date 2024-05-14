@@ -210,18 +210,6 @@ class ROS_preset:
            
         rospy.loginfo('Task completed or interrupted!')
 
-    # def __del__(self):
-    #     rospy.signal_shutdown("Shutdown node")
-    #     rospy.init_node('reset_world')
-
-    #     rospy.wait_for_service('/gazebo/reset_world')
-    #     reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-
-    #     reset_world()
-
-    # def __exit__(self):
-    #     self.__del__()
-
 
 if __name__ == "__main__":
     rospy.init_node('ros_preset_node')
