@@ -33,27 +33,52 @@ import threading
 import math
 
 
+def create_simple_trajectory(x_init=1.2, y_init=1.2):
+        # x = np.linspace(x_init, 0, 5)
+        # y = y_init/x_init * x + np.sin(2*np.pi * x * 0.4)
+
+        x = [0, 1,  0, 1, 1.2]
+        y = [0, 1,  1, 0,  1.5]
+
+        # theta_ref = np.arctan2(np.diff(y), np.diff(x)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        # theta_ref = np.append(theta_ref, theta_ref[-1])
+        theta_ref = np.zeros_like(x)
+
+        return np.vstack([x, y, theta_ref]).T
+
+
 class ROS_preset:
     def __init__(self, ctrl_mode, state_goal, state_init, 
                  my_ctrl_nominal, my_sys, my_ctrl_benchmarking,
-                 my_logger=None, datafile=None):
+                 my_logger=None, datafile=None, trajectory=[]):
         
-        self.RATE = rospy.get_param('/rate', 20)
+        self.RATE = rospy.get_param('/rate', 10)
         self.lock = threading.Lock()
         
         #Initialization
         self.state_init = state_init
-        self.state_goal = state_goal
-        print("state_goal:", self.state_goal)
+
+        self.index = 0
+        self.trajectory = trajectory
+
+        if len(trajectory) == 0:
+            self.state_goal = state_goal
+        else:
+            self.state_goal = trajectory[self.index]
+
         self.system = my_sys
         
         self.ctrl_nominal = my_ctrl_nominal
         self.ctrl_benchm = my_ctrl_benchmarking
 
         # Parameters for gazebo
+        # k_rho = 0.15 # 0.2
+        # k_alpha = 0.17
+        # k_beta = -.02
+
         k_rho = 0.15 # 0.2
         k_alpha = 0.17
-        k_beta = -.05
+        k_beta = -.03
 
         self.ctrl_benchm.N_CTRL.update_kappa(k_rho, k_alpha, k_beta)
         
@@ -85,6 +110,16 @@ class ROS_preset:
         
         # Complete Rotation Matrix
         self.rotation_matrix =  np.zeros((3, 3)) # here
+
+    def get_next_state_goal(self):
+        self.index += 1
+        return self.trajectory[self.index]
+
+    def is_continue_update(self):
+        if len(self.trajectory) == 0:
+            return False
+        
+        return self.index <= len(self.trajectory) - 1
     
     def get_velocity(self, msg):
         self.linear_velocity = msg.twist.twist.linear.x
@@ -107,9 +142,15 @@ class ROS_preset:
         # Extract Theta (orientation about Z)
         theta = current_rpy[0]
         
-        self.state = [x, y, 0, theta]
+        self.state = [x, y, theta]
+
+        if self.is_continue_update():
+            if np.linalg.norm(np.array(self.state)[:2] - self.state_goal[:2]) < 0.1:
+                self.state_goal = self.get_next_state_goal()
+                print("self.state_goal: ", self.state_goal[:2])
         
         # Make transform matrix from 'robot body' frame to 'goal' frame
+        
         theta_goal = self.state_goal[2]
         
         # Complete rotation matrix
@@ -130,15 +171,13 @@ class ROS_preset:
         
         # Complete rotation counter for turtlebot3
         ''' Your solution goes here (rotation_counter) '''        
-        if math.copysign(1, self.prev_theta) != math.copysign(1, theta) and \
-            abs(self.prev_theta) > np.pi:
-            if math.copysign(1, self.prev_theta) == -1:
-                self.rotation_counter -= 1
+        if math.copysign(1, self.prev_theta) != math.copysign(1, theta):
+            if math.copysign(1, theta) == -1:
+                self.rotation_counter = 1
             
             else:
-                self.rotation_counter += 1
-
-        print("self.rotation_counter:", self.rotation_counter)
+                self.rotation_counter = -1
+        # self.rotation_counter = 0
         
         self.prev_theta = theta
         theta = theta + 2 * np.pi * self.rotation_counter
@@ -165,6 +204,9 @@ class ROS_preset:
         start_time = datetime.now()
         rate = rospy.Rate(self.RATE)
         self.time_start = rospy.get_time()
+
+        if self.ctrl_mode == "Stanley_CTRL":
+            self.ctrl_benchm.Stanley_CTRL._create_trajectory(self.new_state[0], self.new_state[1])
         
         while not rospy.is_shutdown() and datetime.now() - start_time < timedelta(100):
             if not all(self.new_state):
@@ -182,11 +224,13 @@ class ROS_preset:
                                                self.ctrl_nominal, 
                                                self.ctrl_benchm, 
                                                self.ctrl_mode)
-            
+            if np.linalg.norm(self.new_state[:2]) < 0.05:
+                action = np.zeros_like(action)
+
             self.system.receive_action(action)
             # self.ctrl_benchm.receive_sys_state(self.system._state)
             self.ctrl_benchm.upd_accum_obj(self.new_state, action)
-
+            
             run_obj = self.ctrl_benchm.run_obj(self.new_state, action)
             accum_obj = self.ctrl_benchm.accum_obj_val
 
@@ -320,6 +364,9 @@ parser.add_argument('--gamma', type=float,
 parser.add_argument('--critic_period_multiplier', type=float,
                     default=1.0,
                     help='Critic is updated every critic_period_multiplier times dt seconds.')
+parser.add_argument('--enable_trajectory', type=bool,
+                    default=False,
+                    help='enable_trajectory tell the system using the predefined trajectory or not.')
 parser.add_argument('--critic_struct', type=str,
                     default='quad-nomix', choices=['quad-lin',
                                                     'quadratic',
@@ -394,7 +441,7 @@ omega_max = 5
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
 
 #----------------------------------------Initialization : : system
-L = 0.5
+L = 0.01
 
 #----------------------------------------Initialization : : system
 if args.ctrl_mode == "Stanley_CTRL":
@@ -457,7 +504,7 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            state_init=state_init,
                                            obstacle=[],
                                            seed=seed,
-                                           L=0.5)
+                                           L=L)
 
 my_ctrl_benchm = my_ctrl_opt_pred
 
@@ -534,6 +581,8 @@ ros_preset = ROS_preset(ctrl_mode,
                         my_ctrl_nominal=my_ctrl_nominal,
                         my_ctrl_benchmarking=my_ctrl_benchm,
                         my_logger=my_logger,
-                        datafile=datafiles
+                        datafile=datafiles,
+                        trajectory=create_simple_trajectory() if args.enable_trajectory else []
                         )
+
 ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)

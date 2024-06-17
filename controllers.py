@@ -601,10 +601,6 @@ class N_CTRL:
 
         if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
             v = -v
-
-        print("[Controllers] observation: {} - goal: {}".format(observation, goal))
-        print("[Controllers] v: {} - w: {}".format(v, w))
-        print("[Controllers] rho: {} - alpha: {} - beta: {}".format(rho, alpha, beta))
         
         return [v,w]
 
