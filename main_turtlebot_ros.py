@@ -78,7 +78,7 @@ class ROS_preset:
 
         k_rho = 0.15 # 0.2
         k_alpha = 0.17
-        k_beta = -.03
+        k_beta = -.02
 
         self.ctrl_benchm.N_CTRL.update_kappa(k_rho, k_alpha, k_beta)
         
@@ -171,13 +171,17 @@ class ROS_preset:
         
         # Complete rotation counter for turtlebot3
         ''' Your solution goes here (rotation_counter) '''        
-        if math.copysign(1, self.prev_theta) != math.copysign(1, theta):
+        if math.copysign(1, self.prev_theta) != math.copysign(1, theta) and \
+            np.abs(theta) > 3:
             if math.copysign(1, theta) == -1:
                 self.rotation_counter = 1
             
             else:
                 self.rotation_counter = -1
         # self.rotation_counter = 0
+
+        # print("self.rotation_counter:", self.rotation_counter)
+        print("theta:", theta, " theta_goal:", theta_goal)
         
         self.prev_theta = theta
         theta = theta + 2 * np.pi * self.rotation_counter
