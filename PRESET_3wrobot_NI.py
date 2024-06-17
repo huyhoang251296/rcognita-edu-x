@@ -202,7 +202,7 @@ omega_min = -2.84
 omega_max = 2.84
 
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
-L = 0.5
+L = .1
 
 #----------------------------------------Initialization : : system
 if args.ctrl_mode == "Stanley_CTRL":

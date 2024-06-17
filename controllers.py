@@ -611,15 +611,15 @@ class Stanley_CTRL:
         ########################## write down here nominal controller class #################################
         #####################################################################################################
     def __init__(self, init_state, L):
-        self.linear_speed = 0.22
+        self.linear_speed = 0.2
         self.L = L
         self._create_trajectory(init_state[0], init_state[1])
         self.last_nearest_point = 0
         pass
 
     def _create_trajectory(self, x_initial=-3, y_initial=3):
-        self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
-        # self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
+        # self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
+        self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
 
     def _create_trajectory_sine(self, x_initial=-3, y_initial=3):
         x_ref = np.linspace(0, 10, 200)
@@ -636,11 +636,12 @@ class Stanley_CTRL:
 
     def _create_trajectory_inf(self, x_initial=-3, y_initial=3):
         t = np.linspace(0, np.pi * 2, 30)
-        scale = 10*2 / (3 - np.cos(2*t))
-        x_ref = scale * np.cos(t)
+
+        # small trajectory
+        scale = 4 / (3 - np.cos(2*t))
+        x_ref = scale * np.cos(t) / 2.5
         y_ref = scale * np.sin(2*t) / 2
 
-        # theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
         theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
         theta_ref = np.append(theta_ref, theta_ref[-1])
 
@@ -690,11 +691,11 @@ class Stanley_CTRL:
             distance_2_trajectory = ma.masked_array(distance_2_trajectory, mask=mask)
             
         self.last_nearest_point = np.argmin(distance_2_trajectory)
-        print("self.last_nearest_point: ", self.last_nearest_point, distance_2_trajectory.shape)
         nearest_point = self.trajectory.T[self.last_nearest_point]
+        print("self.last_nearest_point: ", self.last_nearest_point, nearest_point, distance_2_trajectory, diff)
         e_fa = (nearest_point[1] - y_f)*np.cos(nearest_point[2]) - (nearest_point[0] - x_f)*np.sin(nearest_point[2])
 
-        k = 0.05
+        k = 0.2
         phi = nearest_point[2] - theta + np.arctan(k*e_fa / v)
 
         return [v, phi]
