@@ -406,8 +406,17 @@ class ControllerOptimalPredictive:
         #####################################################################################################
         ################################# write down here cost-function #####################################
         #####################################################################################################
-        factor = np.concatenate([observation, action])
-        cost = factor.T @ self.run_obj_pars[0] @ factor
+        if self.run_obj_struct == "quadratic":
+            chi = np.concatenate([observation, action])
+            cost = chi.T @ self.run_obj_pars[0] @ chi
+        elif self.run_obj_struct == "biquadratic":
+            chi = np.concatenate([observation, action])
+            cost_2nd_order = chi.T @ self.run_obj_pars[0] @ chi
+            cost_4th_order = np.square(chi.T) @ self.run_obj_pars[1] @ np.square(chi)
+            cost = cost_4th_order + cost_2nd_order
+        else:
+            cost = 1
+        
         return cost
 
     def _actor_cost(self, action_sqn, observation):

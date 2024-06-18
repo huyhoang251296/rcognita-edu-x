@@ -269,10 +269,9 @@ class Sys3WRobotNI(System):
             self.mu_disturb = self.pars_disturb[1]
             self.tau_disturb = self.pars_disturb[2]
     
-    def _state_dyn(self, t, state, action, disturb=[]):   
+    def _state_dyn(self, t, state, action, disturb=[]):
         Dstate = np.zeros(self.dim_state)
         
-
         #####################################################################################################
         ############################# write down here math model of robot ###################################
         #####################################################################################################    
