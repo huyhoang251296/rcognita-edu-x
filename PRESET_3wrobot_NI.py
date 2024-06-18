@@ -38,7 +38,7 @@ parser.add_argument('--ctrl_mode', metavar='ctrl_mode', type=str,
                     choices=['MPC',
                              "N_CTRL",
                              "Stanley_CTRL"],
-                    default='Stanley_CTRL',
+                    default='MPC',
                     help='Control mode. Currently available: ' +
                     '----manual: manual constant control specified by action_manual; ' +
                     '----nominal: nominal controller, usually used to benchmark optimal controllers;' +                     
@@ -82,7 +82,7 @@ parser.add_argument('--run_obj_struct', type=str,
                              'biquadratic'],
                     help='Structure of running objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[100, 100, 10, 0, 0],
+                    default=[100, 100, 10, 0, 0], # x, y, theata, v, w
                     help='Parameter of running objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic running objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',

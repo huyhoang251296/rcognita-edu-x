@@ -406,7 +406,9 @@ class ControllerOptimalPredictive:
         #####################################################################################################
         ################################# write down here cost-function #####################################
         #####################################################################################################
-        return 1
+        factor = np.concatenate([observation, action])
+        cost = factor.T @ self.run_obj_pars[0] @ factor
+        return cost
 
     def _actor_cost(self, action_sqn, observation):
         """
