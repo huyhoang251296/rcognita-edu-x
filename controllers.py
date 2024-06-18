@@ -299,6 +299,8 @@ class ControllerOptimalPredictive:
         self.action_sqn_max = rep_mat(self.action_max, 1, Nactor) 
         self.action_sqn_init = []
         self.state_init = []
+        self.obstacle_pos = obstacle
+        self.define_obstacle_potential_area(obstacle)
 
         if len(action_init) == 0:
             self.action_curr = self.action_min/10
@@ -359,6 +361,15 @@ class ControllerOptimalPredictive:
         self.N_CTRL = N_CTRL()
         self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
 
+    def define_obstacle_potential_area(self, obstacle):
+        if len(obstacle) == 0:
+            return
+        
+        self.obstacle_position = np.array([obstacle[:2]])
+        self.obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
+        self.rv = multivariate_normal(mean=self.obstacle_position.flatten(), 
+                                      cov=self.obstacle_sigma)
+
     def reset(self,t0):
         """
         Resets agent for use in multi-episode simulation.
@@ -416,6 +427,11 @@ class ControllerOptimalPredictive:
             cost = cost_4th_order + cost_2nd_order
         else:
             cost = 1
+
+        if len(self.obstacle_pos):
+            obstacle_gain = 1000
+            obs_cost = self.rv.pdf(observation[:2])
+            cost += obstacle_gain * obs_cost
         
         return cost
 
@@ -439,7 +455,6 @@ class ControllerOptimalPredictive:
         state = self.state_sys
         for k in range(1, self.Nactor):
             state = state + self.pred_step_size * self.sys_rhs([], state, my_action_sqn[k-1, :])  # Euler scheme
-            
             observation_sqn[k, :] = self.sys_out(state)
         
         J = 0         

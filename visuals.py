@@ -157,15 +157,19 @@ class Animator3WRobotNI(Animator):
                                    self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
                                    "r-",
                                    lw=0.75)
-            
-            # for i, (x, y, theta) in enumerate(zip(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0], 
-            #                                       self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
-            #                                       self.ctrl_benchmarking.Stanley_CTRL.trajectory[2])):
-            #     # plt.arrow(x, y, np.sin(theta), np.cos(theta), width=0.01)
-            #     plt.annotate(f"{i}", 
-            #                  xytext=(x, y), 
-            #                  xy=(x+np.cos(theta), y+np.sin(theta)), arrowprops=dict(arrowstyle="->"))
 
+        if hasattr(self.ctrl_benchmarking, "rv"):
+            X, Y, Z = create_obstacle_map(
+                self.ctrl_benchmarking.rv,
+                [xMin, xMax],
+                [yMin, yMax],
+            )
+
+            cs = self.axs_xy_plane.contourf(X, Y, Z, alpha=1, levels=5, cmap="BuPu")
+            cs.cmap.set_over('red')
+            cs.cmap.set_under('blue')
+            cs.changed()
+        
         cirlce_target = plt.Circle((0, 0), radius=0.2, color='y', fill=True, lw=2)
         self.axs_xy_plane.add_artist(cirlce_target)
         self.text_target_handle = self.axs_xy_plane.text(0.88, 0.9, 'Target',
@@ -362,5 +366,12 @@ class Animator3WRobotNI(Animator):
             upd_line(self.line_traj, np.nan, np.nan)
 
             
+def create_obstacle_map(rv, x_lim, y_lim):
+    X = np.arange(x_lim[0], x_lim[1], 0.25)
+    Y = np.arange(y_lim[0], y_lim[1], 0.25)
 
-   
+    X, Y = np.meshgrid(X, Y)
+    mesh = np.array([X, Y]).transpose((1, 2, 0))
+    Z = rv.pdf(mesh)
+
+    return X, Y, Z
