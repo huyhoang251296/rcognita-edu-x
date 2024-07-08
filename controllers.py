@@ -429,7 +429,8 @@ class ControllerOptimalPredictive:
             cost = 1
 
         if len(self.obstacle_pos):
-            obstacle_gain = 1000
+            # print("here")
+            obstacle_gain = 2000
             obs_cost = self.rv.pdf(observation[:2])
             cost += obstacle_gain * obs_cost
         

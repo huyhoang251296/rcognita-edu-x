@@ -22,11 +22,14 @@ import visuals
 from utilities import on_key_press
 
 import argparse
+import subprocess
 
 #---------------------------------------- Import ROS
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Twist
+
+from std_srvs.srv import Empty
 
 import transformations as tftr 
 import threading
@@ -52,7 +55,7 @@ class ROS_preset:
                  my_ctrl_nominal, my_sys, my_ctrl_benchmarking,
                  my_logger=None, datafile=None, trajectory=[]):
         
-        self.RATE = rospy.get_param('/rate', 10)
+        self.RATE = rospy.get_param('/rate', 100)
         self.lock = threading.Lock()
         
         #Initialization
@@ -76,11 +79,21 @@ class ROS_preset:
         # k_alpha = 0.17
         # k_beta = -.02
 
-        k_rho = 0.15 # 0.2
-        k_alpha = 0.17
-        k_beta = -.02
+        # k_rho = 0.15
+        # k_alpha = 0.19
+        # k_beta = -.02
 
-        self.ctrl_benchm.N_CTRL.update_kappa(k_rho, k_alpha, k_beta)
+        kappas = [
+            [0.17, 0.19, -0.02],
+            [0.19, 0.21, -0.04],
+            [0.17, 0.19, -0.04],
+            [0.15, 0.17, -0.04],
+            [0.13, 0.17, -0.02],
+            [0.15, 0.19, -0.02],
+            [0.15, 0.17, -0.02],
+            ]
+        
+        self.ctrl_benchm.N_CTRL.update_kappa(*kappas[2])
         
         self.dt = 0.0
         self.time_start = 0.0
@@ -92,7 +105,7 @@ class ROS_preset:
         
         self.state = np.zeros(3) # location of robot in Gazebo world
         self.dstate = np.zeros(3) # velocity of robot in Gazebo world
-        self.new_state = np.zeros(3) # location of robot in python world
+        self.new_state = None
         self.new_dstate = np.zeros(3) # velocity of robot in python world
         
         self.datafiles = datafile
@@ -181,7 +194,7 @@ class ROS_preset:
         # self.rotation_counter = 0
 
         # print("self.rotation_counter:", self.rotation_counter)
-        print("theta:", theta, " theta_goal:", theta_goal)
+        # print("theta:", theta, " theta_goal:", theta_goal)
         
         self.prev_theta = theta
         theta = theta + 2 * np.pi * self.rotation_counter
@@ -212,9 +225,14 @@ class ROS_preset:
         if self.ctrl_mode == "Stanley_CTRL":
             self.ctrl_benchm.Stanley_CTRL._create_trajectory(self.new_state[0], self.new_state[1])
         
-        while not rospy.is_shutdown() and datetime.now() - start_time < timedelta(100):
-            if not all(self.new_state):
+        while not rospy.is_shutdown() and \
+            (start_time is None or datetime.now() - start_time < timedelta(100)):
+            if self.new_state is None:
                 rate.sleep()
+                continue
+            
+            if start_time is None:
+                start_time = datetime.now()
 
             t = rospy.get_time() - self.time_start
             self.t = t
@@ -229,7 +247,9 @@ class ROS_preset:
                                                self.ctrl_benchm, 
                                                self.ctrl_mode)
             if np.linalg.norm(self.new_state[:2]) < 0.05:
+                print("self.new_state", self.new_state)
                 action = np.zeros_like(action)
+                break
 
             self.system.receive_action(action)
             # self.ctrl_benchm.receive_sys_state(self.system._state)
@@ -258,8 +278,11 @@ class ROS_preset:
            
         rospy.loginfo('Task completed or interrupted!')
 
+import time
+
 
 if __name__ == "__main__":
+    subprocess.check_output(["./rcenv/bin/python", f"reset_gazebo.py"])
     rospy.init_node('ros_preset_node')
 
 #----------------------------------------Set up dimensions
@@ -307,7 +330,7 @@ parser.add_argument('--goal_robot_pose_y', type=float,
                     default=3.0,
                     help='y-coordinate of the robot pose.')
 parser.add_argument('--goal_robot_pose_theta', type=float,
-                    default=0.001,
+                    default=1.57,
                     help='orientation angle (in radians) of the robot pose.')
 parser.add_argument('--is_log_data', type=bool,
                     default=True,
@@ -351,7 +374,7 @@ parser.add_argument('--stage_obj_struct', type=str,
                                 'biquadratic'],
                     help='Structure of stage objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[1, 10, 1, 0, 0],
+                    default=[1, 1, 1, 0, 0],
                     help='Parameter of stage objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic stage objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',
@@ -573,7 +596,7 @@ for k in range(0, Nruns):
 # Do not display annoying warnings when print is on
 if is_print_sim_step:
     warnings.filterwarnings('ignore')
-    
+
 my_logger = loggers.Logger3WRobotNI()
 
 #----------------------------------------Main loop
