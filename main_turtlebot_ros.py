@@ -282,7 +282,7 @@ import time
 
 
 if __name__ == "__main__":
-    subprocess.check_output(["./rcenv/bin/python", f"reset_gazebo.py"])
+    subprocess.check_output(["python3.10", f"reset_gazebo.py"])
     rospy.init_node('ros_preset_node')
 
 #----------------------------------------Set up dimensions
@@ -374,7 +374,7 @@ parser.add_argument('--stage_obj_struct', type=str,
                                 'biquadratic'],
                     help='Structure of stage objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[1, 1, 1, 0, 0],
+                    default=[3, 10, 1, 0, 0],
                     help='Parameter of stage objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic stage objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',
