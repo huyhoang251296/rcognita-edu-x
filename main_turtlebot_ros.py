@@ -50,13 +50,14 @@ def create_simple_trajectory(x_init=1.2, y_init=1.2):
 class ROS_preset:
     def __init__(self, ctrl_mode, state_goal, state_init, 
                  my_ctrl_nominal, my_sys, my_ctrl_benchmarking,
-                 my_logger=None, datafile=None, trajectory=[]):
+                 my_logger=None, datafile=None, trajectory=[], obstacle=[]):
         
         self.RATE = rospy.get_param('/rate', 10)
         self.lock = threading.Lock()
         
         #Initialization
         self.state_init = state_init
+        self.obstacle = obstacle
 
         self.index = 0
         self.trajectory = trajectory
@@ -147,8 +148,7 @@ class ROS_preset:
         if self.is_continue_update():
             if np.linalg.norm(np.array(self.state)[:2] - self.state_goal[:2]) < 0.1:
                 self.state_goal = self.get_next_state_goal()
-                print("self.state_goal: ", self.state_goal[:2])
-        
+
         # Make transform matrix from 'robot body' frame to 'goal' frame
         
         theta_goal = self.state_goal[2]
@@ -181,7 +181,7 @@ class ROS_preset:
         # self.rotation_counter = 0
 
         # print("self.rotation_counter:", self.rotation_counter)
-        print("theta:", theta, " theta_goal:", theta_goal)
+        # print("theta:", theta, " theta_goal:", theta_goal)
         
         self.prev_theta = theta
         theta = theta + 2 * np.pi * self.rotation_counter
@@ -222,6 +222,7 @@ class ROS_preset:
             velocity = Twist() # self.dstate
             
             # action = controllers.ctrl_selector('''COMPLETE!''')
+            self.ctrl_benchm.define_obstacle_potential_area(self.obstacle, t_matrix=self.t_matrix)
             action = controllers.ctrl_selector(t, 
                                                self.new_state, 
                                                None, 
@@ -351,7 +352,7 @@ parser.add_argument('--stage_obj_struct', type=str,
                                 'biquadratic'],
                     help='Structure of stage objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[1, 10, 1, 0, 0],
+                    default=[10, 10, 1, 0, 0],
                     help='Parameter of stage objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic stage objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',
@@ -390,6 +391,19 @@ parser.add_argument('--actor_struct', type=str,
                     '----quadratic: quadratic; ' +
                     '----quad-nomix: quadratic, no mixed terms.')
 
+parser.add_argument('--distortion_enable', type=bool,
+                    default=False,
+                    help='X-coordinate of the center of distortion.')
+parser.add_argument('--distortion_x', type=float,
+                    default=1,
+                    help='X-coordinate of the center of distortion.')
+parser.add_argument('--distortion_y', type=float,
+                    default=2,
+                    help='Y-coordinate of the center of distortion.')
+parser.add_argument('--distortion_sigma', type=float,
+                    default=0.1,
+                    help='Standard deviation (sigma) of distortion.')
+
 parser.add_argument('--seed', type=int,
                     default=1,
                     help='Seed for random number generation.')
@@ -407,6 +421,10 @@ args.action_manual = np.array(args.action_manual)
 pred_step_size = args.dt * args.pred_step_size_multiplier
 model_est_period = args.dt * args.model_est_period_multiplier
 critic_period = args.dt * args.critic_period_multiplier
+
+xdistortion_x = args.distortion_x
+ydistortion_y = args.distortion_y
+distortion_sigma = args.distortion_sigma
 
 R1 = np.diag(np.array(args.R1_diag))
 R2 = np.diag(np.array(args.R2_diag))
@@ -586,7 +604,8 @@ ros_preset = ROS_preset(ctrl_mode,
                         my_ctrl_benchmarking=my_ctrl_benchm,
                         my_logger=my_logger,
                         datafile=datafiles,
-                        trajectory=create_simple_trajectory() if args.enable_trajectory else []
+                        trajectory=create_simple_trajectory() if args.enable_trajectory else [],
+                        obstacle=[xdistortion_x, ydistortion_y,distortion_sigma] if args.distortion_enable else []
                         )
 
 ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)
