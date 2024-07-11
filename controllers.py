@@ -367,16 +367,38 @@ class ControllerOptimalPredictive:
         
         if t_matrix is not None:
             temp = np.array([*obstacle[:2], 0, 1])
-            self.obstacle_position = np.linalg.inv(t_matrix) @ temp.T
-            self.obstacle_position = np.array([self.obstacle_position[:2]]) 
+            obstacle_position = np.linalg.inv(t_matrix) @ temp.T
+            obstacle_position = np.array([obstacle_position[:2]]) 
         else:
-            self.obstacle_position = np.array([obstacle[:2]])
+            obstacle_position = np.array([obstacle[:2]])
 
-        print("obstacles:", self.obstacle_position, obstacle[:2])
+        print("obstacles:", obstacle_position, obstacle[:2])
         
-        self.obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
-        self.rv = multivariate_normal(mean=self.obstacle_position.flatten(), 
-                                      cov=self.obstacle_sigma)
+        obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
+        self.rv = multivariate_normal(mean=obstacle_position.flatten(), 
+                                      cov=obstacle_sigma)
+    
+    def define_multi_obstacle_potential_area(self, obstacles, t_matrix=None):
+        if len(obstacles) == 0:
+            return
+        
+        self.multi_rv = []
+
+        for obstacle in obstacles:
+            if t_matrix is not None:
+                temp = np.array([*obstacle[:2], 0, 1])
+                obstacle_position = np.linalg.inv(t_matrix) @ temp.T
+                obstacle_position = np.array([obstacle_position[:2]]) 
+            else:
+                obstacle_position = np.array([obstacle[:2]])
+
+            print("obstacles:", obstacle_position, obstacle[:2])
+            
+            obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
+            rv = multivariate_normal(mean=obstacle_position.flatten(), 
+                                     cov=obstacle_sigma)
+            
+            self.multi_rv.append(rv)
 
     def reset(self,t0):
         """
@@ -436,8 +458,13 @@ class ControllerOptimalPredictive:
         else:
             cost = 1
 
-        if hasattr(self, "rv"):
-            # print("observation:", observation[:2], self.obstacle_position)
+        if hasattr(self, "multi_rv"):
+            obstacle_gain = 100
+            for rv in self.multi_rv:
+                obs_cost = rv.pdf(observation[:2])
+                cost += obstacle_gain * obs_cost
+
+        elif hasattr(self, "rv"):
             obstacle_gain = 100
             obs_cost = self.rv.pdf(observation[:2])
             cost += obstacle_gain * obs_cost

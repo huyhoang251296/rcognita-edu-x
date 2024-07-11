@@ -24,6 +24,8 @@ from utilities import on_key_press
 import argparse
 import subprocess
 
+import ast
+
 #---------------------------------------- Import ROS
 import rospy
 from nav_msgs.msg import Odometry
@@ -35,6 +37,8 @@ import transformations as tftr
 import threading
 import math
 
+
+np.random.seed(42)
 
 def create_simple_trajectory(x_init=1.2, y_init=1.2):
         # x = np.linspace(x_init, 0, 5)
@@ -53,14 +57,14 @@ def create_simple_trajectory(x_init=1.2, y_init=1.2):
 class ROS_preset:
     def __init__(self, ctrl_mode, state_goal, state_init, 
                  my_ctrl_nominal, my_sys, my_ctrl_benchmarking,
-                 my_logger=None, datafile=None, trajectory=[], obstacle=[]):
+                 my_logger=None, datafile=None, trajectory=[], obstacles=[]):
         
         self.RATE = rospy.get_param('/rate', 100)
         self.lock = threading.Lock()
         
         #Initialization
         self.state_init = state_init
-        self.obstacle = obstacle
+        self.obstacles = obstacles
 
         self.index = 0
         self.trajectory = trajectory
@@ -218,9 +222,10 @@ class ROS_preset:
     def spin(self, is_print_sim_step=False, is_log_data=False):
     
         rospy.loginfo('ROS-Preset has been activated!')
-        start_time = datetime.now()
+        start_time = None
         rate = rospy.Rate(self.RATE)
         self.time_start = rospy.get_time()
+        is_done = False
 
         if self.ctrl_mode == "Stanley_CTRL":
             self.ctrl_benchm.Stanley_CTRL._create_trajectory(self.new_state[0], self.new_state[1])
@@ -232,6 +237,7 @@ class ROS_preset:
                 continue
             
             if start_time is None:
+                self.ctrl_benchm.define_multi_obstacle_potential_area(self.obstacles, t_matrix=self.t_matrix)
                 start_time = datetime.now()
 
             t = rospy.get_time() - self.time_start
@@ -240,7 +246,7 @@ class ROS_preset:
             velocity = Twist() # self.dstate
             
             # action = controllers.ctrl_selector('''COMPLETE!''')
-            self.ctrl_benchm.define_obstacle_potential_area(self.obstacle, t_matrix=self.t_matrix)
+            
             action = controllers.ctrl_selector(t, 
                                                self.new_state, 
                                                None, 
@@ -250,7 +256,7 @@ class ROS_preset:
             if np.linalg.norm(self.new_state[:2]) < 0.05:
                 print("self.new_state", self.new_state)
                 action = np.zeros_like(action)
-                break
+                is_done = True
 
             self.system.receive_action(action)
             # self.ctrl_benchm.receive_sys_state(self.system._state)
@@ -276,6 +282,9 @@ class ROS_preset:
             self.pub_cmd_vel.publish(velocity)
             
             rate.sleep()
+
+            if is_done:
+                break
            
         rospy.loginfo('Task completed or interrupted!')
 
@@ -417,15 +426,9 @@ parser.add_argument('--actor_struct', type=str,
 parser.add_argument('--distortion_enable', type=bool,
                     default=False,
                     help='X-coordinate of the center of distortion.')
-parser.add_argument('--distortion_x', type=float,
-                    default=1,
-                    help='X-coordinate of the center of distortion.')
-parser.add_argument('--distortion_y', type=float,
-                    default=2,
-                    help='Y-coordinate of the center of distortion.')
-parser.add_argument('--distortion_sigma', type=float,
-                    default=0.1,
-                    help='Standard deviation (sigma) of distortion.')
+parser.add_argument('--distortion', type=str,
+                    default='[[1, 1, 0.1]]',
+                    help='[X-coordinate, Y-coordinate, sigma], where X,Y-coordinates of the center of distortion and Standard deviation (sigma) of distortion')
 
 parser.add_argument('--seed', type=int,
                     default=1,
@@ -445,9 +448,9 @@ pred_step_size = args.dt * args.pred_step_size_multiplier
 model_est_period = args.dt * args.model_est_period_multiplier
 critic_period = args.dt * args.critic_period_multiplier
 
-xdistortion_x = args.distortion_x
-ydistortion_y = args.distortion_y
-distortion_sigma = args.distortion_sigma
+# xdistortion_x = args.distortion_x
+# ydistortion_y = args.distortion_y
+# distortion_sigma = args.distortion_sigma
 
 R1 = np.diag(np.array(args.R1_diag))
 R2 = np.diag(np.array(args.R2_diag))
@@ -479,8 +482,8 @@ yMax = 10
 model_est_checks = 0
 
 # Control constraints
-v_min = -0.22 *10
-v_max = 0.22 *10
+v_min = -0.22
+v_max = 0.22
 omega_min = -2.84
 omega_max = 2.84
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
@@ -522,7 +525,7 @@ alpha_deg_0 = alpha0/2/np.pi
 
 #----------------------------------------Initialization : : model
 
-obstacles = [xdistortion_x, ydistortion_y, distortion_sigma] if args.distortion_enable else []
+obstacles = ast.literal_eval(args.distortion) if args.distortion_enable else []
 #----------------------------------------Initialization : : controller
 my_ctrl_nominal = None
 
@@ -548,7 +551,7 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            run_obj_pars = [R1],
                                            observation_target = [0, 0, 0],
                                            state_init=state_init,
-                                           obstacle=obstacles,
+                                           obstacle=[],
                                            seed=seed,
                                            L=L)
 
@@ -631,7 +634,7 @@ ros_preset = ROS_preset(ctrl_mode,
                         my_logger=my_logger,
                         datafile=datafiles,
                         trajectory=create_simple_trajectory() if args.enable_trajectory else [],
-                        obstacle=obstacles
+                        obstacles=obstacles
                         )
 
 ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)
