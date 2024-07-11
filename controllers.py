@@ -360,17 +360,19 @@ class ControllerOptimalPredictive:
             self.Wmax = np.ones(self.dim_critic) 
         self.N_CTRL = N_CTRL()
         self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
-
-    def define_obstacle_potential_area(self, obstacle, t_matrix=[]):
+    
+    def define_obstacle_potential_area(self, obstacle, t_matrix=None):
         if len(obstacle) == 0:
             return
         
         if t_matrix is not None:
             temp = np.array([*obstacle[:2], 0, 1])
             self.obstacle_position = np.linalg.inv(t_matrix) @ temp.T
-            self.obstacle_position = self.obstacle_position[:2]
-        else:        
+            self.obstacle_position = np.array([self.obstacle_position[:2]]) 
+        else:
             self.obstacle_position = np.array([obstacle[:2]])
+
+        print("obstacles:", self.obstacle_position, obstacle[:2])
         
         self.obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
         self.rv = multivariate_normal(mean=self.obstacle_position.flatten(), 
@@ -436,7 +438,7 @@ class ControllerOptimalPredictive:
 
         if hasattr(self, "rv"):
             # print("observation:", observation[:2], self.obstacle_position)
-            obstacle_gain = 10
+            obstacle_gain = 100
             obs_cost = self.rv.pdf(observation[:2])
             cost += obstacle_gain * obs_cost
         

@@ -375,7 +375,7 @@ parser.add_argument('--stage_obj_struct', type=str,
                                 'biquadratic'],
                     help='Structure of stage objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[10, 10, 1, 0, 0],
+                    default=[2, 10, 1, 0, 0],
                     help='Parameter of stage objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic stage objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',
@@ -479,10 +479,10 @@ yMax = 10
 model_est_checks = 0
 
 # Control constraints
-v_min = -25
-v_max = 25
-omega_min = -5
-omega_max = 5
+v_min = -0.22 *10
+v_max = 0.22 *10
+omega_min = -2.84
+omega_max = 2.84
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
 
 #----------------------------------------Initialization : : system
@@ -522,6 +522,7 @@ alpha_deg_0 = alpha0/2/np.pi
 
 #----------------------------------------Initialization : : model
 
+obstacles = [xdistortion_x, ydistortion_y, distortion_sigma] if args.distortion_enable else []
 #----------------------------------------Initialization : : controller
 my_ctrl_nominal = None
 
@@ -547,7 +548,7 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            run_obj_pars = [R1],
                                            observation_target = [0, 0, 0],
                                            state_init=state_init,
-                                           obstacle=[],
+                                           obstacle=obstacles,
                                            seed=seed,
                                            L=L)
 
@@ -628,7 +629,7 @@ ros_preset = ROS_preset(ctrl_mode,
                         my_logger=my_logger,
                         datafile=datafiles,
                         trajectory=create_simple_trajectory() if args.enable_trajectory else [],
-                        obstacle=[xdistortion_x, ydistortion_y,distortion_sigma] if args.distortion_enable else []
+                        obstacle=obstacles
                         )
 
 ros_preset.spin(is_print_sim_step=args.is_print_sim_step, is_log_data=args.is_log_data)
