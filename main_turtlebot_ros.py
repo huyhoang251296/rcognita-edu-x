@@ -581,6 +581,8 @@ date = datetime.now().strftime("%Y-%m-%d")
 time = datetime.now().strftime("%Hh%Mm%Ss")
 datafiles = [None] * Nruns
 
+state_goal=[args.goal_robot_pose_x, args.goal_robot_pose_y, args.goal_robot_pose_theta]
+
 for k in range(0, Nruns):
     # datafiles[k] = data_folder + '/' + my_sys.name + '__' + ctrl_mode + '__' + date + '__' + time + '__run{run:02d}.csv'.format(run=k+1)
     datafiles[k] = data_folder + '/' + str(datetime.now().timestamp()) + "__" + my_sys.name + '__' + ctrl_mode + '__' + date + '__' + time + '__run{run:02d}.csv'.format(run=k+1)
@@ -593,7 +595,7 @@ for k in range(0, Nruns):
             writer.writerow(['System', my_sys.name ] )
             writer.writerow(['Controller', ctrl_mode ] )
             writer.writerow(['dt', str(dt) ] )
-            writer.writerow(['state_init', str(state_init) ] )
+            writer.writerow(['state_goal', str(state_goal) ] )
             writer.writerow(['is_est_model', str(is_est_model) ] )
             writer.writerow(['model_est_stage', str(model_est_stage) ] )
             writer.writerow(['model_est_period_multiplier', str(model_est_period_multiplier) ] )
@@ -621,7 +623,7 @@ my_logger = loggers.Logger3WRobotNI()
 #----------------------------------------Main loop
 
 ros_preset = ROS_preset(ctrl_mode,
-                        state_goal=[args.goal_robot_pose_x, args.goal_robot_pose_y, args.goal_robot_pose_theta],
+                        state_goal=state_goal,
                         state_init=state_init,
                         my_sys=my_sys,
                         my_ctrl_nominal=my_ctrl_nominal,
