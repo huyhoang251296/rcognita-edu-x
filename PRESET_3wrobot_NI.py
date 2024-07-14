@@ -147,6 +147,10 @@ parser.add_argument('--seed', type=int,
                     default=1,
                     help='Seed for random number generation.')
 
+parser.add_argument('--experiment', type=str,
+                    default=None,
+                    help='Name of the experiment')
+
 args = parser.parse_args()
 
 seed=args.seed
@@ -295,7 +299,10 @@ date = datetime.now().strftime("%Y-%m-%d")
 time = datetime.now().strftime("%Hh%Mm%Ss")
 datafiles = [None] * args.Nruns
 
-data_folder = 'simdata/' + args.ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, args.Nactor)
+if args.experiment is None:
+    data_folder = 'simdata/' + args.ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, args.Nactor)
+else:
+    data_folder = 'simdata/' + args.experiment + "/" + args.ctrl_mode + "_Init_angle_{}".format(str(state_init[2]))
 
 if args.is_log_data:
     pathlib.Path(data_folder).mkdir(parents=True, exist_ok=True) 
