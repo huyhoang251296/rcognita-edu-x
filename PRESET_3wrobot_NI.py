@@ -301,7 +301,7 @@ if args.is_log_data:
     pathlib.Path(data_folder).mkdir(parents=True, exist_ok=True) 
 
 for k in range(0, args.Nruns):
-    datafiles[k] = data_folder + '/' + my_sys.name + '_' + args.ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
+    datafiles[k] = data_folder + '/' + str(datetime.now().timestamp()) + "__" + my_sys.name + '_' + args.ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
     
     if args.is_log_data:
         print('Logging data to:    ' + datafiles[k])

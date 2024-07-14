@@ -358,7 +358,7 @@ class ControllerOptimalPredictive:
             self.dim_critic = int( ( ( self.dim_output + self.dim_input ) + 1 ) * ( self.dim_output + self.dim_input )/2 * 3)
             self.Wmin = np.zeros(self.dim_critic) 
             self.Wmax = np.ones(self.dim_critic) 
-        self.N_CTRL = N_CTRL()
+        self.N_CTRL = N_CTRL(ctrl_bnds)
         self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
     
     def define_obstacle_potential_area(self, obstacle, t_matrix=None):
@@ -619,15 +619,32 @@ class N_CTRL:
         #####################################################################################################
         ########################## write down here nominal controller class #################################
         #####################################################################################################
-    def __init__(self):
+    def __init__(self, action_bounds):
         self.linear_speed = 2.5
         self.angular_speed = 3
 
         
         # python simulation
-        self.k_rho = 2
-        self.k_alpha = 15
-        self.k_beta = -1.5
+        # self.k_rho = 2
+        # self.k_alpha = 15
+        # self.k_beta = -1.5
+
+        # self.k_rho = 3
+        # self.k_alpha = 12
+        # self.k_beta = -15
+        
+        # good for forward
+        # self.k_rho = 2
+        # self.k_alpha = 10
+        # self.k_beta = -2.5
+
+        # # good for backward
+        self.k_rho = 1.5
+        self.k_alpha = 7
+        self.k_beta = -.7
+
+        self.linear_sign=None
+        self.ctrl_bnds = action_bounds
         pass
     
     def update_kappa(self, k_rho, k_alpha, k_beta):
@@ -635,6 +652,18 @@ class N_CTRL:
         self.k_rho = k_rho
         self.k_alpha = k_alpha
         self.k_beta = k_beta
+
+    def ensure_range(self, angle, atol=1e-1):
+        if np.isclose(angle, np.pi, atol=atol):
+            return np.pi
+        
+        while angle > np.pi:
+            angle -= 2* np.pi
+
+        while angle <= -np.pi:
+            angle += 2* np.pi
+
+        return angle
 
     def pure_loop(self, observation, goal=[0, 0, 0]):
         x_robot = observation[0]
@@ -648,23 +677,34 @@ class N_CTRL:
         error_y = y_goal - y_robot
         error_theta = theta_goal - theta
 
-        rho = np.sqrt(error_x**2 + error_y**2)
-        alpha = -theta + np.arctan2(error_y, error_x)
-        beta = error_theta - alpha
+        if np.allclose(observation[:2], [0, 0], atol=0.001) and np.isclose(observation[2], 0, atol=0.05):
+            return [0, 0]
 
-        w = self.k_alpha*alpha + self.k_beta*beta
-        v = self.k_rho*rho
+        rho = np.linalg.norm([error_x, error_y])
+        alpha = self.ensure_range(error_theta + np.arctan2(error_y, error_x))
+        beta = self.ensure_range(error_theta - alpha)
 
-        while alpha > np.pi:
-            alpha -= 2* np.pi
-
-        while alpha < -np.pi:
-            alpha += 2* np.pi
-
-        if -np.pi < alpha <= -np.pi / 2 or np.pi / 2 < alpha <= np.pi:
-            v = -v
         
-        return [v,w]
+        if self.linear_sign is None:
+            if np.abs(alpha) > np.pi/2:
+                self.linear_sign = -1
+            else:
+                self.linear_sign = 1
+
+        if self.linear_sign == -1:
+            alpha = self.ensure_range(np.pi - alpha)
+        w = self.k_alpha*alpha + self.k_beta*beta
+        w *= self.linear_sign
+
+        v = self.k_rho*rho 
+        v *= self.linear_sign
+
+        action = [v, w]
+        print("w: {} - l_w: {} - r_w: {} - alpha: {} - beta: {}".format(w, self.k_alpha*alpha, self.k_beta*beta, alpha, beta))
+        for k in range(2):
+            action[k] = np.clip(action[k], self.ctrl_bnds[k, 0], self.ctrl_bnds[k, 1])
+        
+        return action
 
 
 class Stanley_CTRL:
