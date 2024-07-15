@@ -53,7 +53,7 @@ def run_Stanley_control():
             for k in ks:
                 for st in strategy:
                     # Only run strategy tempo with inf trajectory
-                    if traj == "sine" and st == "tempo":
+                    if not (traj == "sine" and st == "tempo"):
                         continue
 
                     subprocess.check_output([
