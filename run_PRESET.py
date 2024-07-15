@@ -90,8 +90,29 @@ def run_MPC_const_init():
                     "--dt", str(dt),
                     "--Nactor", str(Nactor)
                     ])
+                
+def run_MPC_R1_factor():
+    initial_pose = [-3, -3, 0.001]
+    penalty_x_s = [1, 5, 10, 50, 100]
+    penalty_y_s = [1, 5, 10, 50, 100]
+
+    for pen_x in penalty_x_s:
+        for pen_y in penalty_y_s:
+            subprocess.check_output([
+                "python", "PRESET_3wrobot_NI.py",
+                "--ctrl_mode", "MPC",
+                "--experiment", "one_pose_R1",
+                "--init_robot_pose_x", str(initial_pose[0]),
+                "--init_robot_pose_y",  str(initial_pose[1]),
+                "--init_robot_pose_theta",  str(initial_pose[2]),
+                "--pred_step_size_multiplier", str(2),
+                "--dt", str(0.1),
+                "--Nactor", str(6),
+                "--R1_diag", str(pen_x), str(pen_y), "1", "0", "0"
+                ])
 
 if __name__ == "__main__":
     # run_nominal_control()
     # run_Stanley_control()
-    run_MPC_const_init()
+    # run_MPC_const_init()
+    run_MPC_R1_factor()

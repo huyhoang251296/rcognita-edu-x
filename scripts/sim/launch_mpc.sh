@@ -4,4 +4,5 @@ python PRESET_3wrobot_NI.py \
            --Nactor 4 \
            --dt 0.2 \
            --init_robot_pose_x 3 \
-           --init_robot_pose_y 1 
+           --init_robot_pose_y 1 \
+           --R1_diag 10 10 1 0 0 
