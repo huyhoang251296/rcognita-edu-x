@@ -68,7 +68,30 @@ def run_Stanley_control():
                         "--Stanley_traj", traj,
                         "--Stanley_strategy", str(st),
                         ])
+                    
+
+def run_MPC_const_init():
+    initial_pose = [-3, -3, 0.001]
+    Nactor_s = range(2, 8, 2)
+    pred_step_size_multipliers = range(2, 10, 2)
+    dt_s = [0.1, 0.2, 0.3]
+
+    for Nactor in Nactor_s:
+        for step_mul in pred_step_size_multipliers:
+            for dt in dt_s:
+                subprocess.check_output([
+                    "python", "PRESET_3wrobot_NI.py",
+                    "--ctrl_mode", "MPC",
+                    "--experiment", "one_pose",
+                    "--init_robot_pose_x", str(initial_pose[0]),
+                    "--init_robot_pose_y",  str(initial_pose[1]),
+                    "--init_robot_pose_theta",  str(initial_pose[2]),
+                    "--pred_step_size_multiplier", str(step_mul),
+                    "--dt", str(dt),
+                    "--Nactor", str(Nactor)
+                    ])
 
 if __name__ == "__main__":
     # run_nominal_control()
-    run_Stanley_control()
+    # run_Stanley_control()
+    run_MPC_const_init()
