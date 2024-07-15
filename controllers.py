@@ -361,7 +361,7 @@ class ControllerOptimalPredictive:
         self.N_CTRL = N_CTRL(ctrl_bnds)
         if "N_kappa" in kwargs:
             self.N_CTRL.update_kappa(*kwargs["N_kappa"])
-        self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
+        self.Stanley_CTRL = Stanley_CTRL(state_init, **kwargs)
     
     def define_obstacle_potential_area(self, obstacle, t_matrix=None):
         if len(obstacle) == 0:
@@ -625,21 +625,6 @@ class N_CTRL:
         self.linear_speed = 2.5
         self.angular_speed = 3
 
-        
-        # python simulation
-        # self.k_rho = 2
-        # self.k_alpha = 15
-        # self.k_beta = -1.5
-
-        # self.k_rho = 3
-        # self.k_alpha = 12
-        # self.k_beta = -15
-        
-        # good for forward
-        # self.k_rho = 2
-        # self.k_alpha = 10
-        # self.k_beta = -2.5
-
         # # good for backward
         self.k_rho = 1.5
         self.k_alpha = 9
@@ -714,20 +699,28 @@ class Stanley_CTRL:
         #####################################################################################################
         ########################## write down here nominal controller class #################################
         #####################################################################################################
-    def __init__(self, init_state, L):
-        self.linear_speed = 0.2
+    def __init__(self, init_state, L, **kwargs):
+        self.linear_speed = 0.5
         self.L = L
-        self._create_trajectory(init_state[0], init_state[1])
+        self._create_trajectory(init_state[0], init_state[1], **kwargs)
         self.last_nearest_point = 0
+        self.stategy = kwargs.get("Stanley_strategy", "simple")
+        self.k = kwargs.get("Stanley_k", 0.2)
+        self.k = kwargs.get("Stanley_k", 0.2)
+        
         pass
 
-    def _create_trajectory(self, x_initial=-3, y_initial=3):
-        # self.trajectory = self._create_trajectory_sine(x_initial=-3, y_initial=3)
-        self.trajectory = self._create_trajectory_inf(x_initial, y_initial)
+    def _create_trajectory(self, x_initial=-3, y_initial=3, **kwargs):
+        traj = kwargs.get("Stanley_traj", "sine")
 
-    def _create_trajectory_sine(self, x_initial=-3, y_initial=3):
-        x_ref = np.linspace(0, 10, 200)
-        y_ref = 2*np.sin(2 * np.pi * x_ref * 0.15)
+        if traj == "sine":
+            self.trajectory = self._create_trajectory_sine(x_initial, y_initial, **kwargs)
+        else:
+            self.trajectory = self._create_trajectory_inf(x_initial, y_initial, **kwargs)
+
+    def _create_trajectory_sine(self, x_initial=-3, y_initial=3, freq=0.3, **kwargs):
+        x_ref = np.linspace(0, 5, 200)
+        y_ref = 2*np.sin(2 * np.pi * x_ref * freq) # frequency: = 0.5 -> 0.5 circle / 1 meter at X axis
 
         theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref))
         theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref))
@@ -738,12 +731,12 @@ class Stanley_CTRL:
 
         return np.vstack((x_ref, y_ref, theta_ref))
 
-    def _create_trajectory_inf(self, x_initial=-3, y_initial=3):
-        t = np.linspace(0, np.pi * 2, 30)
+    def _create_trajectory_inf(self, x_initial=-3, y_initial=3, n_points=200, **kwargs):
+        t = np.linspace(0, np.pi * 2, n_points)
 
         # small trajectory
         scale = 4 / (3 - np.cos(2*t))
-        x_ref = scale * np.cos(t) / 2.5
+        x_ref = scale * np.cos(t) / 1
         y_ref = scale * np.sin(2*t) / 2
 
         theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
@@ -764,19 +757,16 @@ class Stanley_CTRL:
         x_f = x_robot + self.L * np.cos(theta)
         y_f = y_robot + self.L * np.sin(theta)
 
-        # distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
-        methods = "nearest_temp"
-        if methods == "simple":
+        if self.stategy == "simple":
             distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
-        elif methods == "arc_length":
+        elif self.stategy == "arc_length":
             r = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
             theta_ref = self.trajectory[2,:].T
             theta_ref[theta_ref < 0] += 2 * np.pi
             target = theta
             target = target + 2*np.pi if target < 0 else target
             distance_2_trajectory = np.square(theta_ref - target) * r
-
-        elif methods == "nearest_temp":
+        elif self.stategy == "tempo":
             diff = self.trajectory[:2,:].T - np.array((x_f, y_f))
             distance_2_trajectory = np.linalg.norm(diff, axis=1)
             mask = np.ones_like(distance_2_trajectory)
@@ -796,10 +786,10 @@ class Stanley_CTRL:
             
         self.last_nearest_point = np.argmin(distance_2_trajectory)
         nearest_point = self.trajectory.T[self.last_nearest_point]
-        print("self.last_nearest_point: ", self.last_nearest_point, nearest_point, distance_2_trajectory, diff)
-        e_fa = (nearest_point[1] - y_f)*np.cos(nearest_point[2]) - (nearest_point[0] - x_f)*np.sin(nearest_point[2])
+        theta_error = nearest_point[2] - theta
+        e_fa = (nearest_point[1] - y_f)*np.cos(theta_error) - \
+               (nearest_point[0] - x_f)*np.sin(theta_error)
 
-        k = 0.2
-        phi = nearest_point[2] - theta + np.arctan(k*e_fa / v)
+        phi = theta_error + np.arctan(self.k*e_fa / v)
 
         return [v, phi]

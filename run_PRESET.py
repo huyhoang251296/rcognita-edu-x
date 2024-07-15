@@ -33,6 +33,42 @@ def run_nominal_control():
                     "--init_robot_pose_theta",  str(theta),
                     "--N_kappa", "[{}, {}, {}]".format(*kappa)
                     ])
+                
+def run_Stanley_control():
+    ks = [0.1, 0.5, 1]
+    trajectories = [
+        "sine",
+        "inf"
+    ]
+    Ls = [
+        0.2,
+        1
+    ]
+    strategy = [
+        "simple", "tempo"
+    ]
+    
+    for traj in trajectories:
+        for L in Ls:
+            for k in ks:
+                for st in strategy:
+                    # Only run strategy tempo with inf trajectory
+                    if traj == "sine" and st == "tempo":
+                        continue
+
+                    subprocess.check_output([
+                        "python", "PRESET_3wrobot_NI.py",
+                        "--ctrl_mode", "Stanley_CTRL",
+                        "--experiment", "multi_pose",
+                        "--t1", str(30),
+                        "--init_robot_pose_x", "-1",
+                        "--init_robot_pose_y",  "-1",
+                        "--Stanley_L", str(L),
+                        "--Stanley_k", str(k),
+                        "--Stanley_traj", traj,
+                        "--Stanley_strategy", str(st),
+                        ])
 
 if __name__ == "__main__":
-    run_nominal_control()
+    # run_nominal_control()
+    run_Stanley_control()

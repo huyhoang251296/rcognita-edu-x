@@ -154,6 +154,27 @@ parser.add_argument('--experiment', type=str,
 parser.add_argument('--N_kappa', type=str,
                     default="[1.5, 9, -2.7]",
                     help='kappa of nominal controller')
+
+parser.add_argument('--Stanley_k', type=float,
+                    default=0.2,
+                    help='kappa for Stanly cross track correction')
+
+parser.add_argument('--Stanley_L', type=float,
+                    default=0.2,
+                    help='Relative position of Front wheel to back axle')
+
+parser.add_argument('--Stanley_traj', type=str,
+                    default="sine",
+                    choices=['sine',
+                             'inf'],
+                    help='Shape of the trajectory')
+
+parser.add_argument('--Stanley_strategy', type=str,
+                    default="simple",
+                    choices=['simple',
+                             'tempo'],
+                    help='Detemine how to find the nearest point')
+
 args = parser.parse_args()
 
 seed=args.seed
@@ -212,7 +233,7 @@ omega_min = -2.84
 omega_max = 2.84
 
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
-L = .1
+L = args.Stanley_L
 
 #----------------------------------------Initialization : : system
 if args.ctrl_mode == "Stanley_CTRL":
@@ -277,7 +298,10 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            obstacle=[xdistortion_x, ydistortion_y,distortion_sigma] if args.distortion_enable else [],
                                            seed=seed,
                                            L=L,
-                                           N_kappa=N_kappa)
+                                           Stanley_k=args.Stanley_k,
+                                           N_kappa=N_kappa,
+                                           Stanley_traj=args.Stanley_traj,
+                                           Stanley_strategy=args.Stanley_strategy)
 
 
 my_ctrl_benchm = my_ctrl_opt_pred
@@ -336,6 +360,10 @@ for k in range(0, args.Nruns):
             writer.writerow(['critic_struct', str(args.critic_struct) ] )
             writer.writerow(['actor_struct', str(args.actor_struct) ] )
             writer.writerow(['N_kappa', str(args.N_kappa) ] )
+            writer.writerow(['Stanley_traj', str(args.Stanley_traj) ] )
+            writer.writerow(['Stanley_L', str(args.Stanley_L) ] )
+            writer.writerow(['Stanley_strategy', str(args.Stanley_strategy) ] )
+            writer.writerow(['Stanley_k', str(args.Stanley_k) ] )
             writer.writerow(['t [s]', 'x [m]', 'y [m]', 'alpha [rad]', 'run_obj', 'accum_obj', 'v [m/s]', 'omega [rad/s]'] )
 
 # Do not display annoying warnings when print is on
