@@ -359,6 +359,8 @@ class ControllerOptimalPredictive:
             self.Wmin = np.zeros(self.dim_critic) 
             self.Wmax = np.ones(self.dim_critic) 
         self.N_CTRL = N_CTRL(ctrl_bnds)
+        if "N_kappa" in kwargs:
+            self.N_CTRL.update_kappa(*kwargs["N_kappa"])
         self.Stanley_CTRL = Stanley_CTRL(state_init, L=kwargs["L"])
     
     def define_obstacle_potential_area(self, obstacle, t_matrix=None):
@@ -640,8 +642,8 @@ class N_CTRL:
 
         # # good for backward
         self.k_rho = 1.5
-        self.k_alpha = 7
-        self.k_beta = -.7
+        self.k_alpha = 9
+        self.k_beta = -2.7
 
         self.linear_sign=None
         self.ctrl_bnds = action_bounds

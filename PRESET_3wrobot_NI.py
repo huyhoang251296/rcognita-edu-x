@@ -20,7 +20,7 @@ import visuals
 from utilities import on_key_press
 
 import argparse
-
+import ast
 #----------------------------------------Set up dimensions
 dim_state = 3
 dim_input = 2
@@ -50,7 +50,7 @@ parser.add_argument('--dt', type=float, metavar='dt',
                     default=0.1,
                     help='Controller sampling time.' )
 parser.add_argument('--t1', type=float, metavar='t1',
-                    default=30,
+                    default=7,
                     help='Final time of episode.' )
 parser.add_argument('--Nruns', type=int,
                     default=1,
@@ -151,6 +151,9 @@ parser.add_argument('--experiment', type=str,
                     default=None,
                     help='Name of the experiment')
 
+parser.add_argument('--N_kappa', type=str,
+                    default="[1.5, 9, -2.7]",
+                    help='kappa of nominal controller')
 args = parser.parse_args()
 
 seed=args.seed
@@ -248,6 +251,7 @@ alpha_deg_0 = alpha0/2/np.pi
 #----------------------------------------Initialization : : controller
 my_ctrl_nominal = None 
 
+N_kappa = ast.literal_eval(args.N_kappa) if args.N_kappa is not None else []
 # Predictive optimal controller
 my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            dim_output,
@@ -272,7 +276,8 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            state_init=state_init,
                                            obstacle=[xdistortion_x, ydistortion_y,distortion_sigma] if args.distortion_enable else [],
                                            seed=seed,
-                                           L=L)
+                                           L=L,
+                                           N_kappa=N_kappa)
 
 
 my_ctrl_benchm = my_ctrl_opt_pred
@@ -302,7 +307,7 @@ datafiles = [None] * args.Nruns
 if args.experiment is None:
     data_folder = 'simdata/' + args.ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, args.Nactor)
 else:
-    data_folder = 'simdata/' + args.experiment + "/" + args.ctrl_mode + "_Init_angle_{}".format(str(state_init[2]))
+    data_folder = 'simdata/' + args.experiment + "/" + args.ctrl_mode + "/Init_angle_{}".format(str(state_init[2]))
 
 if args.is_log_data:
     pathlib.Path(data_folder).mkdir(parents=True, exist_ok=True) 
@@ -329,7 +334,8 @@ for k in range(0, args.Nruns):
             writer.writerow(['gamma', str(args.gamma) ] )
             writer.writerow(['critic_period_multiplier', str(args.critic_period_multiplier) ] )
             writer.writerow(['critic_struct', str(args.critic_struct) ] )
-            writer.writerow(['actor_struct', str(args.actor_struct) ] )   
+            writer.writerow(['actor_struct', str(args.actor_struct) ] )
+            writer.writerow(['N_kappa', str(args.N_kappa) ] )
             writer.writerow(['t [s]', 'x [m]', 'y [m]', 'alpha [rad]', 'run_obj', 'accum_obj', 'v [m/s]', 'omega [rad/s]'] )
 
 # Do not display annoying warnings when print is on

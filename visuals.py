@@ -336,7 +336,7 @@ class Animator3WRobotNI(Animator):
                 print('Animation done...')
                 # print(self.AAA)
                 self.stop_anm()
-                # plt.close('all')
+                plt.close('all')
                 # print("HERE OK")
                 return 
             
