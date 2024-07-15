@@ -2,7 +2,7 @@ import subprocess
 import numpy as np
 
 
-if __name__ == "__main__":
+def run_nominal_control():
     initial_theta = [
         0.001, np.pi, np.pi/2
     ]
@@ -33,3 +33,6 @@ if __name__ == "__main__":
                     "--init_robot_pose_theta",  str(theta),
                     "--N_kappa", "[{}, {}, {}]".format(*kappa)
                     ])
+
+if __name__ == "__main__":
+    run_nominal_control()
