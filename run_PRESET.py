@@ -1,6 +1,6 @@
 import subprocess
 import numpy as np
-
+import sys
 
 def run_nominal_control():
     initial_theta = [
@@ -18,9 +18,6 @@ def run_nominal_control():
     for kappa in N_kappa:
         for theta in initial_theta:
             for pos in initial_position:
-                if not np.any(pos):
-                    continue
-
                 if 0 not in pos:
                     continue
 
@@ -112,7 +109,11 @@ def run_MPC_R1_factor():
                 ])
 
 if __name__ == "__main__":
-    # run_nominal_control()
-    # run_Stanley_control()
-    # run_MPC_const_init()
-    run_MPC_R1_factor()
+    if sys.argv[1] == "nominal":
+        run_nominal_control()
+    elif sys.argv[1] == "stanley":
+        run_Stanley_control()
+    elif sys.argv[1] == "MPC_1":
+        run_MPC_const_init()
+    elif sys.argv[1] == "MPC_2":
+        run_MPC_R1_factor()
