@@ -27,10 +27,16 @@ I created bash script where contains all the config. Users just need to run foll
 source ./scripts/sim/launch_nominal.sh
 ```
 
+Result in Rcognita:
+<img src="simdata_bk/Nominal.svg">
+
 ## Stanley Control
 ```bash
 source ./scripts/sim/launch_stanley.sh
 ```
+
+Result in Rcognita:
+<img src="simdata_bk/Stanley.svg">
 
 ## MPC for Differential Drive
 ### MPC only
@@ -38,10 +44,16 @@ source ./scripts/sim/launch_stanley.sh
 source ./scripts/sim/launch_mpc.sh
 ```
 
+Result in Rcognita:
+<img src="simdata_bk/MPC.svg">
+
 ### MPC with obstacle avoidance
 ```bash
 source ./scripts/sim/launch_mpc_obs_avoidance.sh
 ```
+
+Result in Rcognita:
+<img src="simdata_bk/MPC_obstacle_avoidance.svg">
 
 ## Run Hyperparameters
 With options like 
