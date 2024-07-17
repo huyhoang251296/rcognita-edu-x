@@ -162,3 +162,6 @@ simdata/
 #.idea/
 
 /rcenv
+
+# untrack videos
+*.mp4
