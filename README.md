@@ -24,11 +24,26 @@ I created bash script where contains all the config. Users just need to run foll
 
 ## Nominal control
 ```bash
+# Run in Rcognita
 source ./scripts/sim/launch_nominal.sh
+
+# Run in Gazebo or Robot
+source ./scripts/ros/launch_mpc.sh
 ```
 
 Result in Rcognita:
 <img src="simdata_bk/Nominal.svg">
+
+
+Result in Gazebo:
+
+<img src="simdata_bk/Nominal.gif"/>
+
+
+Result in real world :
+
+<img src="simdata_bk/Nominal_real_robot.gif"/>
+
 
 ## Stanley Control
 ```bash
@@ -41,19 +56,36 @@ Result in Rcognita:
 ## MPC for Differential Drive
 ### MPC only
 ```bash
+# Run in Rcognita
 source ./scripts/sim/launch_mpc.sh
+
+# Run in Gazebo or Robot
+source ./scripts/ros/launch_mpc.sh
 ```
 
 Result in Rcognita:
 <img src="simdata_bk/MPC.svg">
 
+Result in Gazebo:
+
+<img src="simdata_bk/MPC.gif"/>
+
+
 ### MPC with obstacle avoidance
 ```bash
+# Run in Rcognita
 source ./scripts/sim/launch_mpc_obs_avoidance.sh
+
+# Run in Gazebo or Robot
+source ./scripts/ros/launch_mpc_obs_avoidance.sh
 ```
 
 Result in Rcognita:
 <img src="simdata_bk/MPC_obstacle_avoidance.svg">
+
+Result in Gazebo:
+
+<img src="simdata_bk/MPC_obs_ros_150-speed.gif"/>
 
 ## Run Hyperparameters
 With options like 
