@@ -105,6 +105,7 @@ Recordings:
 
 ### Analyze logs
 These are notebooks analyzing the according hyperparameters options:
+
 `"nominal"`: [check_data_log_Nominal.ipynb](notebooks/check_data_log_Nominal.ipynb)
 
 `"stanley"`: [check_data_log_Stanley.ipynb](notebooks/check_data_log_Stanley.ipynb)
