@@ -36,8 +36,10 @@ from std_srvs.srv import Empty
 import transformations as tftr 
 import threading
 import math
+import os
 
 
+print("INTERPRETER", os.getenv("INTERPRETER_P"))
 np.random.seed(42)
 
 def create_simple_trajectory(x_init=1.2, y_init=1.2):
@@ -292,7 +294,7 @@ import time
 
 
 if __name__ == "__main__":
-    subprocess.check_output(["python3.10", f"reset_gazebo.py"])
+    subprocess.check_output([os.getenv("INTERPRETER_P"), f"reset_gazebo.py"])
     rospy.init_node('ros_preset_node')
 
 #----------------------------------------Set up dimensions
@@ -434,6 +436,10 @@ parser.add_argument('--seed', type=int,
                     default=1,
                     help='Seed for random number generation.')
 
+parser.add_argument('--N_kappa', type=str,
+                    default="[1.5, 9, -2.7]",
+                    help='kappa of nominal controller')
+
 args = parser.parse_args()
 
 #----------------------------------------Post-processing of arguments
@@ -528,6 +534,7 @@ alpha_deg_0 = alpha0/2/np.pi
 obstacles = ast.literal_eval(args.distortion) if args.distortion_enable else []
 #----------------------------------------Initialization : : controller
 my_ctrl_nominal = None
+N_kappa = ast.literal_eval(args.N_kappa) if args.N_kappa is not None else []
 
 # Predictive optimal controller
 my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
@@ -553,7 +560,8 @@ my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            state_init=state_init,
                                            obstacle=[],
                                            seed=seed,
-                                           L=L)
+                                           L=L,
+                                           N_kappa=N_kappa,)
 
 my_ctrl_benchm = my_ctrl_opt_pred
 

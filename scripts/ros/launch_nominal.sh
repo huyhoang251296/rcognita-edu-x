@@ -7,9 +7,8 @@ else
 fi
 
 INTERPRETER_P=${INTERPRETER_P} INTERPRETER main_turtlebot_ros.py \
-           --ctrl_mode MPC \
-           --pred_step_size_multiplier 8 \
-           --Nactor 4 \
-           --dt 0.2 \
-           --goal_robot_pose_x 3 \
-           --goal_robot_pose_y 1 \
+        --ctrl_mode N_CTRL\
+        --goal_robot_pose_x 3 \
+        --goal_robot_pose_y 1 \
+        --goal_robot_pose_theta 0.001 \
+        --N_kappa "[0.5, 9, -2.5]"
