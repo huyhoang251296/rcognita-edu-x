@@ -20,7 +20,7 @@ import visuals
 from utilities import on_key_press
 
 import argparse
-
+import ast
 #----------------------------------------Set up dimensions
 dim_state = 3
 dim_input = 2
@@ -36,8 +36,9 @@ parser = argparse.ArgumentParser(description=description)
 
 parser.add_argument('--ctrl_mode', metavar='ctrl_mode', type=str,
                     choices=['MPC',
-                             "N_CTRL"],
-                    default='N_CTRL',
+                             "N_CTRL",
+                             "Stanley_CTRL"],
+                    default='MPC',
                     help='Control mode. Currently available: ' +
                     '----manual: manual constant control specified by action_manual; ' +
                     '----nominal: nominal controller, usually used to benchmark optimal controllers;' +                     
@@ -49,7 +50,7 @@ parser.add_argument('--dt', type=float, metavar='dt',
                     default=0.1,
                     help='Controller sampling time.' )
 parser.add_argument('--t1', type=float, metavar='t1',
-                    default=30,
+                    default=7,
                     help='Final time of episode.' )
 parser.add_argument('--Nruns', type=int,
                     default=1,
@@ -81,7 +82,7 @@ parser.add_argument('--run_obj_struct', type=str,
                              'biquadratic'],
                     help='Structure of running objective function.')
 parser.add_argument('--R1_diag', type=float, nargs='+',
-                    default=[100, 100, 10, 0, 0],
+                    default=[100, 100, 10, 0, 0], # x, y, theata, v, w
                     help='Parameter of running objective function. Must have proper dimension. ' +
                     'Say, if chi = [observation, action], then a quadratic running objective reads chi.T diag(R1) chi, where diag() is transformation of a vector to a diagonal matrix.')
 parser.add_argument('--R2_diag', type=float, nargs='+',
@@ -130,11 +131,14 @@ parser.add_argument('--init_robot_pose_y', type=float,
 parser.add_argument('--init_robot_pose_theta', type=float,
                     default=1.57,
                     help='Initial orientation angle (in radians) of the robot pose.')
+parser.add_argument('--distortion_enable', type=bool,
+                    default=False,
+                    help='X-coordinate of the center of distortion.')
 parser.add_argument('--distortion_x', type=float,
-                    default=-0.6,
+                    default=-1.5,
                     help='X-coordinate of the center of distortion.')
 parser.add_argument('--distortion_y', type=float,
-                    default=-0.5,
+                    default=-1.5,
                     help='Y-coordinate of the center of distortion.')
 parser.add_argument('--distortion_sigma', type=float,
                     default=0.1,
@@ -142,6 +146,34 @@ parser.add_argument('--distortion_sigma', type=float,
 parser.add_argument('--seed', type=int,
                     default=1,
                     help='Seed for random number generation.')
+
+parser.add_argument('--experiment', type=str,
+                    default=None,
+                    help='Name of the experiment')
+
+parser.add_argument('--N_kappa', type=str,
+                    default="[1.5, 9, -2.7]",
+                    help='kappa of nominal controller')
+
+parser.add_argument('--Stanley_k', type=float,
+                    default=0.2,
+                    help='kappa for Stanly cross track correction')
+
+parser.add_argument('--Stanley_L', type=float,
+                    default=0.2,
+                    help='Relative position of Front wheel to back axle')
+
+parser.add_argument('--Stanley_traj', type=str,
+                    default="sine",
+                    choices=['sine',
+                             'inf'],
+                    help='Shape of the trajectory')
+
+parser.add_argument('--Stanley_strategy', type=str,
+                    default="simple",
+                    choices=['simple',
+                             'tempo'],
+                    help='Detemine how to find the nearest point')
 
 args = parser.parse_args()
 
@@ -201,18 +233,32 @@ omega_min = -2.84
 omega_max = 2.84
 
 ctrl_bnds=np.array([[v_min, v_max], [omega_min, omega_max]])
+L = args.Stanley_L
 
 #----------------------------------------Initialization : : system
-my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
-                                     dim_state=dim_state,
-                                     dim_input=dim_input,
-                                     dim_output=dim_output,
-                                     dim_disturb=dim_disturb,
-                                     pars=[],
-                                     ctrl_bnds=ctrl_bnds,
-                                     is_dyn_ctrl=is_dyn_ctrl,
-                                     is_disturb=is_disturb,
-                                     pars_disturb=[])
+if args.ctrl_mode == "Stanley_CTRL":
+    my_sys = systems.Sys3WRobotStanley(sys_type="diff_eqn", 
+                                    dim_state=dim_state,
+                                    dim_input=dim_input,
+                                    dim_output=dim_output,
+                                    dim_disturb=dim_disturb,
+                                    pars=[],
+                                    ctrl_bnds=ctrl_bnds,
+                                    is_dyn_ctrl=is_dyn_ctrl,
+                                    is_disturb=is_disturb,
+                                    pars_disturb=[],
+                                    L=L)
+else:
+    my_sys = systems.Sys3WRobotNI(sys_type="diff_eqn", 
+                                    dim_state=dim_state,
+                                    dim_input=dim_input,
+                                    dim_output=dim_output,
+                                    dim_disturb=dim_disturb,
+                                    pars=[],
+                                    ctrl_bnds=ctrl_bnds,
+                                    is_dyn_ctrl=is_dyn_ctrl,
+                                    is_disturb=is_disturb,
+                                    pars_disturb=[])
 
 observation_init = my_sys.out(state_init)
 
@@ -226,30 +272,36 @@ alpha_deg_0 = alpha0/2/np.pi
 #----------------------------------------Initialization : : controller
 my_ctrl_nominal = None 
 
+N_kappa = ast.literal_eval(args.N_kappa) if args.N_kappa is not None else []
 # Predictive optimal controller
 my_ctrl_opt_pred = controllers.ControllerOptimalPredictive(dim_input,
                                            dim_output,
-                                           ctrl_mode,
+                                           args.ctrl_mode,
                                            ctrl_bnds = ctrl_bnds,
                                            action_init = [],
                                            t0 = t0,
-                                           sampling_time = dt,
-                                           Nactor = Nactor,
+                                           sampling_time = args.dt,
+                                           Nactor = args.Nactor,
                                            pred_step_size = pred_step_size,
                                            sys_rhs = my_sys._state_dyn,
                                            sys_out = my_sys.out,
                                            state_sys = state_init,
-                                           buffer_size = buffer_size,
-                                           gamma = gamma,
-                                           Ncritic = Ncritic,
+                                           buffer_size = args.buffer_size,
+                                           gamma = args.gamma,
+                                           Ncritic = args.Ncritic,
                                            critic_period = critic_period,
-                                           critic_struct = critic_struct,
-                                           run_obj_struct = run_obj_struct,
-                                           run_obj_pars = [R1],
-                                           observation_target = [],
+                                           critic_struct = args.critic_struct,
+                                           run_obj_struct = args.run_obj_struct,
+                                           run_obj_pars = [R1, R2],
+                                           observation_target = [0, 0, 0],
                                            state_init=state_init,
-                                           obstacle=[xdistortion_x, ydistortion_y,distortion_sigma],
-                                           seed=seed)
+                                           obstacle=[xdistortion_x, ydistortion_y,distortion_sigma] if args.distortion_enable else [],
+                                           seed=seed,
+                                           L=L,
+                                           Stanley_k=args.Stanley_k,
+                                           N_kappa=N_kappa,
+                                           Stanley_traj=args.Stanley_traj,
+                                           Stanley_strategy=args.Stanley_strategy)
 
 
 my_ctrl_benchm = my_ctrl_opt_pred
@@ -262,9 +314,9 @@ my_simulator = simulator.Simulator(sys_type = "diff_eqn",
                                    disturb_init = [],
                                    action_init = action_init,
                                    t0 = t0,
-                                   t1 = t1,
-                                   dt = dt,
-                                   max_step = dt,
+                                   t1 = args.t1,
+                                   dt = args.dt,
+                                   max_step = args.dt,
                                    first_step = 1e-4,
                                    atol = atol,
                                    rtol = rtol,
@@ -274,40 +326,48 @@ my_simulator = simulator.Simulator(sys_type = "diff_eqn",
 #----------------------------------------Initialization : : logger
 date = datetime.now().strftime("%Y-%m-%d")
 time = datetime.now().strftime("%Hh%Mm%Ss")
-datafiles = [None] * Nruns
+datafiles = [None] * args.Nruns
 
-data_folder = 'simdata/' + ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, Nactor)
+if args.experiment is None:
+    data_folder = 'simdata/' + args.ctrl_mode + "/Init_angle_{}_seed_{}_Nactor_{}".format(str(state_init[2]), seed, args.Nactor)
+else:
+    data_folder = 'simdata/' + args.experiment + "/" + args.ctrl_mode + "/Init_angle_{}".format(str(state_init[2]))
 
-if is_log_data:
+if args.is_log_data:
     pathlib.Path(data_folder).mkdir(parents=True, exist_ok=True) 
 
-for k in range(0, Nruns):
-    datafiles[k] = data_folder + '/' + my_sys.name + '_' + ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
+for k in range(0, args.Nruns):
+    datafiles[k] = data_folder + '/' + str(datetime.now().timestamp()) + "__" + my_sys.name + '_' + args.ctrl_mode + '_' + date + '_' + time + '__run{run:02d}.csv'.format(run=k+1)
     
-    if is_log_data:
+    if args.is_log_data:
         print('Logging data to:    ' + datafiles[k])
             
         with open(datafiles[k], 'w', newline='') as outfile:
             writer = csv.writer(outfile)
             writer.writerow(['System', my_sys.name ] )
-            writer.writerow(['Controller', ctrl_mode ] )
-            writer.writerow(['dt', str(dt) ] )
+            writer.writerow(['Controller', args.ctrl_mode ] )
+            writer.writerow(['dt', str(args.dt) ] )
             writer.writerow(['state_init', str(state_init) ] )
-            writer.writerow(['Nactor', str(Nactor) ] )
-            writer.writerow(['pred_step_size_multiplier', str(pred_step_size_multiplier) ] )
-            writer.writerow(['buffer_size', str(buffer_size) ] )
-            writer.writerow(['run_obj_struct', str(run_obj_struct) ] )
-            writer.writerow(['R1_diag', str(R1_diag) ] )
-            writer.writerow(['R2_diag', str(R2_diag) ] )
-            writer.writerow(['Ncritic', str(Ncritic) ] )
-            writer.writerow(['gamma', str(gamma) ] )
-            writer.writerow(['critic_period_multiplier', str(critic_period_multiplier) ] )
-            writer.writerow(['critic_struct', str(critic_struct) ] )
-            writer.writerow(['actor_struct', str(actor_struct) ] )   
+            writer.writerow(['Nactor', str(args.Nactor) ] )
+            writer.writerow(['pred_step_size_multiplier', str(args.pred_step_size_multiplier) ] )
+            writer.writerow(['buffer_size', str(args.buffer_size) ] )
+            writer.writerow(['run_obj_struct', str(args.run_obj_struct) ] )
+            writer.writerow(['R1_diag', str(args.R1_diag) ] )
+            writer.writerow(['R2_diag', str(args.R2_diag) ] )
+            writer.writerow(['Ncritic', str(args.Ncritic) ] )
+            writer.writerow(['gamma', str(args.gamma) ] )
+            writer.writerow(['critic_period_multiplier', str(args.critic_period_multiplier) ] )
+            writer.writerow(['critic_struct', str(args.critic_struct) ] )
+            writer.writerow(['actor_struct', str(args.actor_struct) ] )
+            writer.writerow(['N_kappa', str(args.N_kappa) ] )
+            writer.writerow(['Stanley_traj', str(args.Stanley_traj) ] )
+            writer.writerow(['Stanley_L', str(args.Stanley_L) ] )
+            writer.writerow(['Stanley_strategy', str(args.Stanley_strategy) ] )
+            writer.writerow(['Stanley_k', str(args.Stanley_k) ] )
             writer.writerow(['t [s]', 'x [m]', 'y [m]', 'alpha [rad]', 'run_obj', 'accum_obj', 'v [m/s]', 'omega [rad/s]'] )
 
 # Do not display annoying warnings when print is on
-if is_print_sim_step:
+if args.is_print_sim_step:
     warnings.filterwarnings('ignore')
     
 my_logger = loggers.Logger3WRobotNI()
@@ -315,7 +375,7 @@ my_logger = loggers.Logger3WRobotNI()
 #----------------------------------------Main loop
 state_full_init = my_simulator.state_full
 
-if is_visualization:
+if args.is_visualization:
     my_animator = visuals.Animator3WRobotNI(objects=(my_simulator,
                                                      my_sys,
                                                      my_ctrl_nominal,
@@ -326,25 +386,25 @@ if is_visualization:
                                             pars=(state_init,
                                                   action_init,
                                                   t0,
-                                                  t1,
+                                                  args.t1,
                                                   state_full_init,
                                                   xMin,
                                                   xMax,
                                                   yMin,
                                                   yMax,
-                                                  ctrl_mode,
-                                                  action_manual,
+                                                  args.ctrl_mode,
+                                                  args.action_manual,
                                                   v_min,
                                                   omega_min,
                                                   v_max,
                                                   omega_max,
-                                                  Nruns,
-                                                  is_print_sim_step, is_log_data, 0, [], [xdistortion_x, ydistortion_y,distortion_sigma]))
+                                                  args.Nruns,
+                                                  args.is_print_sim_step, args.is_log_data, 0, [], [xdistortion_x, ydistortion_y,distortion_sigma]))
 
     anm = animation.FuncAnimation(my_animator.fig_sim,
                                   my_animator.animate,
                                   init_func=my_animator.init_anim,
-                                  blit=False, interval=dt/1e6, repeat=False)
+                                  blit=False, interval=args.dt/1e6, repeat=False)
     print("ALSO GOOD")
     my_animator.get_anm(anm)
     
@@ -366,7 +426,7 @@ else:
         
         t, state, observation, state_full = my_simulator.get_sim_step_data()
         
-        action = controllers.ctrl_selector(t, observation, action_manual, my_ctrl_nominal, my_ctrl_benchm, ctrl_mode)
+        action = controllers.ctrl_selector(t, observation, args.action_manual, my_ctrl_nominal, my_ctrl_benchm, args.ctrl_mode)
         
         my_sys.receive_action(action)
         my_ctrl_benchm.receive_sys_state(my_sys._state)
@@ -382,34 +442,34 @@ else:
         count_CALF = my_ctrl_benchm.D_count()
         count_N_CTRL = my_ctrl_benchm.get_N_CTRL_count()
 
-        if is_print_sim_step:
+        if args.is_print_sim_step:
             my_logger.print_sim_step(t, xCoord, yCoord, alpha, run_obj, accum_obj, action)
             
-        if is_log_data:
+        if args.is_log_data:
             my_logger.log_data_row(datafile, t, xCoord, yCoord, alpha, run_obj, accum_obj, action)
         
 
-        if t >= t1 or np.linalg.norm(observation[:2]) < 0.2:
+        if t >= args.t1 or np.linalg.norm(observation[:2]) < 0.2:
 
             # Reset simulator
             my_simulator.reset()
             
-            if ctrl_mode != 'nominal':
+            if args.ctrl_mode != 'nominal':
                 my_ctrl_benchm.reset(t0)
             else:
                 my_ctrl_nominal.reset(t0)
             
             accum_obj = 0 
 
-            if is_print_sim_step:
+            if args.is_print_sim_step:
                 print('.....................................Run {run:2d} done.....................................'.format(run = run_curr))
                 
             run_curr += 1
             
-            if run_curr > Nruns:
+            if run_curr > args.Nruns:
                 plt.close('all')
                 break
                 
-            if is_log_data:
+            if args.is_log_data:
                 datafile = datafiles[run_curr-1]
                  

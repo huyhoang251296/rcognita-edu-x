@@ -9,6 +9,7 @@ from utilities import uptria2vec
 from utilities import push_vec
 import models
 import numpy as np
+import numpy.ma as ma
 import scipy as sp
 from numpy.random import rand
 from scipy.optimize import minimize
@@ -41,7 +42,7 @@ def ctrl_selector(t, observation, action_manual, ctrl_nominal, ctrl_benchmarking
     
     if mode=='manual': 
         action = action_manual
-    elif mode=='nominal': 
+    elif mode=='nominal':
         action = ctrl_nominal.compute_action(t, observation)
     else: # Controller for benchmakring
         action = ctrl_benchmarking.compute_action(t, observation)
@@ -177,10 +178,11 @@ class ControllerOptimalPredictive:
                  critic_struct='quad-nomix',
                  run_obj_struct='quadratic',
                  run_obj_pars=[],
-                 observation_target=[],
+                 observation_target=[0, 0, np.pi],
                  state_init=[],
                  obstacle=[],
-                 seed=1):
+                 seed=1,
+                 **kwargs):
         """
             Parameters
             ----------
@@ -297,6 +299,8 @@ class ControllerOptimalPredictive:
         self.action_sqn_max = rep_mat(self.action_max, 1, Nactor) 
         self.action_sqn_init = []
         self.state_init = []
+        self.obstacle_pos = obstacle
+        self.define_obstacle_potential_area(obstacle)
 
         if len(action_init) == 0:
             self.action_curr = self.action_min/10
@@ -355,6 +359,48 @@ class ControllerOptimalPredictive:
             self.Wmin = np.zeros(self.dim_critic) 
             self.Wmax = np.ones(self.dim_critic) 
         self.N_CTRL = N_CTRL(ctrl_bnds)
+        if "N_kappa" in kwargs:
+            self.N_CTRL.update_kappa(*kwargs["N_kappa"])
+        self.Stanley_CTRL = Stanley_CTRL(state_init, **kwargs)
+    
+    def define_obstacle_potential_area(self, obstacle, t_matrix=None):
+        if len(obstacle) == 0:
+            return
+        
+        if t_matrix is not None:
+            temp = np.array([*obstacle[:2], 0, 1])
+            obstacle_position = np.linalg.inv(t_matrix) @ temp.T
+            obstacle_position = np.array([obstacle_position[:2]]) 
+        else:
+            obstacle_position = np.array([obstacle[:2]])
+
+        print("obstacles:", obstacle_position, obstacle[:2])
+        
+        obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
+        self.rv = multivariate_normal(mean=obstacle_position.flatten(), 
+                                      cov=obstacle_sigma)
+    
+    def define_multi_obstacle_potential_area(self, obstacles, t_matrix=None):
+        if len(obstacles) == 0:
+            return
+        
+        self.multi_rv = []
+
+        for obstacle in obstacles:
+            if t_matrix is not None:
+                temp = np.array([*obstacle[:2], 0, 1])
+                obstacle_position = np.linalg.inv(t_matrix) @ temp.T
+                obstacle_position = np.array([obstacle_position[:2]]) 
+            else:
+                obstacle_position = np.array([obstacle[:2]])
+
+            print("obstacles:", obstacle_position, obstacle[:2])
+            
+            obstacle_sigma = np.diag([obstacle[2], obstacle[2]])
+            rv = multivariate_normal(mean=obstacle_position.flatten(), 
+                                     cov=obstacle_sigma)
+            
+            self.multi_rv.append(rv)
 
     def reset(self,t0):
         """
@@ -389,10 +435,7 @@ class ControllerOptimalPredictive:
     
     def upd_accum_obj(self, observation, action):
         """
-        Sample-to-sample accumulated (summed up or integrated) running objective. This can be handy to evaluate the performance of the agent.
-        If the agent succeeded to stabilize the system, ``accum_obj`` would converge to a finite value which is the performance mark.
-        The smaller, the better (depends on the problem specification of course - you might want to maximize cost instead).
-        
+        Sample-to-sample accumulated (summed up or integrated) running objectseed        
         """
         self.accum_obj_val += self.run_obj(observation, action)*self.sampling_time
                  
@@ -406,8 +449,29 @@ class ControllerOptimalPredictive:
         #####################################################################################################
         ################################# write down here cost-function #####################################
         #####################################################################################################
+        if self.run_obj_struct == "quadratic":
+            chi = np.concatenate([observation, action])
+            cost = chi.T @ self.run_obj_pars[0] @ chi
+        elif self.run_obj_struct == "biquadratic":
+            chi = np.concatenate([observation, action])
+            cost_2nd_order = chi.T @ self.run_obj_pars[0] @ chi
+            cost_4th_order = np.square(chi.T) @ self.run_obj_pars[1] @ np.square(chi)
+            cost = cost_4th_order + cost_2nd_order
+        else:
+            cost = 1
 
-        return run_obj
+        if hasattr(self, "multi_rv"):
+            obstacle_gain = 100
+            for rv in self.multi_rv:
+                obs_cost = rv.pdf(observation[:2])
+                cost += obstacle_gain * obs_cost
+
+        elif hasattr(self, "rv"):
+            obstacle_gain = 100
+            obs_cost = self.rv.pdf(observation[:2])
+            cost += obstacle_gain * obs_cost
+        
+        return cost
 
     def _actor_cost(self, action_sqn, observation):
         """
@@ -429,7 +493,6 @@ class ControllerOptimalPredictive:
         state = self.state_sys
         for k in range(1, self.Nactor):
             state = state + self.pred_step_size * self.sys_rhs([], state, my_action_sqn[k-1, :])  # Euler scheme
-            
             observation_sqn[k, :] = self.sys_out(state)
         
         J = 0         
@@ -540,7 +603,11 @@ class ControllerOptimalPredictive:
 
             elif self.mode == "N_CTRL":
                 
-                action = self.N_CTRL.pure_loop(observation)
+                action = self.N_CTRL.pure_loop(observation, self.observation_target)
+            
+            elif self.mode == "Stanley_CTRL":
+                
+                action = self.Stanley_CTRL.pure_loop(observation)
             
             self.action_curr = action
             
@@ -554,8 +621,175 @@ class N_CTRL:
         #####################################################################################################
         ########################## write down here nominal controller class #################################
         #####################################################################################################
+    def __init__(self, action_bounds):
+        self.linear_speed = 2.5
+        self.angular_speed = 3
 
-        return [v,w]
+        # # good for backward
+        self.k_rho = 1.5
+        self.k_alpha = 9
+        self.k_beta = -2.7
+
+        self.linear_sign=None
+        self.ctrl_bnds = action_bounds
+        pass
+    
+    def update_kappa(self, k_rho, k_alpha, k_beta):
+        # Parameters for gazebo
+        self.k_rho = k_rho
+        self.k_alpha = k_alpha
+        self.k_beta = k_beta
+
+    def ensure_range(self, angle, atol=1e-1):
+        if np.isclose(angle, np.pi, atol=atol):
+            return np.pi
+        
+        while angle > np.pi:
+            angle -= 2* np.pi
+
+        while angle <= -np.pi:
+            angle += 2* np.pi
+
+        return angle
+
+    def pure_loop(self, observation, goal=[0, 0, 0]):
+        x_robot = observation[0]
+        y_robot = observation[1]
+        theta = observation[2]
+        x_goal = goal[0]
+        y_goal = goal[1]
+        theta_goal = goal[2]
+
+        error_x = x_goal - x_robot
+        error_y = y_goal - y_robot
+        error_theta = theta_goal - theta
+
+        if np.allclose(observation[:2], [0, 0], atol=0.001) and np.isclose(observation[2], 0, atol=0.05):
+            return [0, 0]
+
+        rho = np.linalg.norm([error_x, error_y])
+        alpha = self.ensure_range(error_theta + np.arctan2(error_y, error_x))
+        beta = self.ensure_range(error_theta - alpha)
+
+        
+        if self.linear_sign is None:
+            if np.abs(alpha) > np.pi/2:
+                self.linear_sign = -1
+            else:
+                self.linear_sign = 1
+
+        if self.linear_sign == -1:
+            alpha = self.ensure_range(np.pi - alpha)
+        w = self.k_alpha*alpha + self.k_beta*beta
+        w *= self.linear_sign
+
+        v = self.k_rho*rho 
+        v *= self.linear_sign
+
+        action = [v, w]
+        print("w: {} - l_w: {} - r_w: {} - alpha: {} - beta: {}".format(w, self.k_alpha*alpha, self.k_beta*beta, alpha, beta))
+        for k in range(2):
+            action[k] = np.clip(action[k], self.ctrl_bnds[k, 0], self.ctrl_bnds[k, 1])
+        
+        return action
 
 
+class Stanley_CTRL:
 
+        #####################################################################################################
+        ########################## write down here nominal controller class #################################
+        #####################################################################################################
+    def __init__(self, init_state, L, **kwargs):
+        self.linear_speed = 0.5
+        self.L = L
+        self._create_trajectory(init_state[0], init_state[1], **kwargs)
+        self.last_nearest_point = 0
+        self.stategy = kwargs.get("Stanley_strategy", "simple")
+        self.k = kwargs.get("Stanley_k", 0.2)
+        self.k = kwargs.get("Stanley_k", 0.2)
+        
+        pass
+
+    def _create_trajectory(self, x_initial=-3, y_initial=3, **kwargs):
+        traj = kwargs.get("Stanley_traj", "sine")
+
+        if traj == "sine":
+            self.trajectory = self._create_trajectory_sine(x_initial, y_initial, **kwargs)
+        else:
+            self.trajectory = self._create_trajectory_inf(x_initial, y_initial, **kwargs)
+
+    def _create_trajectory_sine(self, x_initial=-3, y_initial=3, freq=0.3, **kwargs):
+        x_ref = np.linspace(0, 5, 200)
+        y_ref = 2*np.sin(2 * np.pi * x_ref * freq) # frequency: = 0.5 -> 0.5 circle / 1 meter at X axis
+
+        theta_ref = np.arctan2(np.diff(x_ref), np.diff(y_ref))
+        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref))
+        theta_ref = np.append(theta_ref, theta_ref[-1])
+
+        x_ref = x_ref + (x_initial - x_ref[0])
+        y_ref = y_ref + (y_initial - y_ref[0])
+
+        return np.vstack((x_ref, y_ref, theta_ref))
+
+    def _create_trajectory_inf(self, x_initial=-3, y_initial=3, n_points=200, **kwargs):
+        t = np.linspace(0, np.pi * 2, n_points)
+
+        # small trajectory
+        scale = 4 / (3 - np.cos(2*t))
+        x_ref = scale * np.cos(t) / 1
+        y_ref = scale * np.sin(2*t) / 2
+
+        theta_ref = np.arctan2(np.diff(y_ref), np.diff(x_ref)) # dependencies: x_ref[-1], x_ref[-2], y_ref[-1], y_ref[-2]
+        theta_ref = np.append(theta_ref, theta_ref[-1])
+
+        x_ref = x_ref + (x_initial - x_ref[0])
+        y_ref = y_ref + (y_initial - y_ref[0])
+
+        return np.vstack((x_ref, y_ref, theta_ref))
+        
+    def pure_loop(self, observation):
+        x_robot = observation[0]
+        y_robot = observation[1]
+        theta = observation[2]
+        
+        v = self.linear_speed
+
+        x_f = x_robot + self.L * np.cos(theta)
+        y_f = y_robot + self.L * np.sin(theta)
+
+        if self.stategy == "simple":
+            distance_2_trajectory = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+        elif self.stategy == "arc_length":
+            r = np.linalg.norm(self.trajectory[:2,:].T - np.array((x_f, y_f)), axis=1)
+            theta_ref = self.trajectory[2,:].T
+            theta_ref[theta_ref < 0] += 2 * np.pi
+            target = theta
+            target = target + 2*np.pi if target < 0 else target
+            distance_2_trajectory = np.square(theta_ref - target) * r
+        elif self.stategy == "tempo":
+            diff = self.trajectory[:2,:].T - np.array((x_f, y_f))
+            distance_2_trajectory = np.linalg.norm(diff, axis=1)
+            mask = np.ones_like(distance_2_trajectory)
+
+            gain = 3
+            upper_lim = self.last_nearest_point + gain
+            lower_lim = self.last_nearest_point - gain
+            if self.last_nearest_point == 0:
+                mask = 0
+            elif upper_lim >= len(distance_2_trajectory):
+                tmp = upper_lim - len(distance_2_trajectory)
+                mask[max(0, lower_lim):] = 0
+                mask[:tmp] = 0
+            else:
+                mask[max(0, lower_lim):upper_lim] = 0
+            distance_2_trajectory = ma.masked_array(distance_2_trajectory, mask=mask)
+            
+        self.last_nearest_point = np.argmin(distance_2_trajectory)
+        nearest_point = self.trajectory.T[self.last_nearest_point]
+        theta_error = nearest_point[2] - theta
+        e_fa = (nearest_point[1] - y_f)*np.cos(theta_error) - \
+               (nearest_point[0] - x_f)*np.sin(theta_error)
+
+        phi = theta_error + np.arctan(self.k*e_fa / v)
+
+        return [v, phi]

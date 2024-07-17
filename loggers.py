@@ -45,3 +45,22 @@ class Logger3WRobotNI(Logger):
                 writer = csv.writer(outfile)
                 writer.writerow([t, xCoord, yCoord, alpha, run_obj, accum_obj, action[0], action[1]])
                 
+class Logger3WRobotNI_improve(Logger):
+    """
+    Data logger for a 3-wheel robot with static actuators.
+    
+    """
+    def print_sim_step(self, t, xCoord, yCoord, alpha, run_obj, accum_obj, action, k_a, k_b, k_c):
+    # alphaDeg = alpha/np.pi*180      
+    
+        row_header = ['t [s]', 'x [m]', 'y [m]', 'alpha [rad]', 'run_obj', 'accum_obj', 'v [m/s]', 'omega [rad/s]', 'k_a', 'k_b', 'k_r']  
+        row_data = [t, xCoord, yCoord, alpha, run_obj, accum_obj, action[0], action[1], k_a, k_b, k_c]  
+        row_format = ('8.3f', '8.3f', '8.3f', '8.3f', '8.1f', '8.1f', '8.3f', '8.3f')   
+        table = tabulate([row_header, row_data], floatfmt=row_format, headers='firstrow', tablefmt='grid')
+    
+        print(table)
+    
+    def log_data_row(self, datafile, t, xCoord, yCoord, alpha, run_obj, accum_obj, action, k_a, k_b, k_c):
+        with open(datafile, 'a', newline='') as outfile:
+                writer = csv.writer(outfile)
+                writer.writerow([t, xCoord, yCoord, alpha, run_obj, accum_obj, action[0], action[1], k_a, k_b, k_c])

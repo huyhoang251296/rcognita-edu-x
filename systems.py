@@ -269,15 +269,17 @@ class Sys3WRobotNI(System):
             self.mu_disturb = self.pars_disturb[1]
             self.tau_disturb = self.pars_disturb[2]
     
-    def _state_dyn(self, t, state, action, disturb=[]):   
+    def _state_dyn(self, t, state, action, disturb=[]):
         Dstate = np.zeros(self.dim_state)
         
-
         #####################################################################################################
         ############################# write down here math model of robot ###################################
         #####################################################################################################    
-             
-        return Dstate    
+        Dstate[0] = action[0] * np.cos(state[2])
+        Dstate[1] = action[0] * np.sin(state[2])
+        Dstate[2] = action[1]
+
+        return Dstate
  
     def _disturb_dyn(self, t, disturb):
         """
@@ -296,3 +298,53 @@ class Sys3WRobotNI(System):
         observation = state
         return observation
 
+
+class Sys3WRobotStanley(System):
+    """
+    System class: 3-wheel robot with static actuators (the NI - non-holonomic integrator).
+    
+    
+    """ 
+    
+    def __init__(self, *args, **kwargs):
+        self.L = kwargs["L"]
+        del kwargs["L"]
+
+        super().__init__(*args, **kwargs)
+        
+        self.name = 'Sys3WRobotStanley'
+
+        if self.is_disturb:
+            self.sigma_disturb = self.pars_disturb[0]
+            self.mu_disturb = self.pars_disturb[1]
+            self.tau_disturb = self.pars_disturb[2]
+    
+
+    def _state_dyn(self, t, state, action, disturb=[]):   
+        Dstate = np.zeros(self.dim_state)
+        
+        #####################################################################################################
+        ############################# write down here math model of robot ###################################
+        #####################################################################################################    
+        Dstate[0] = action[0] * np.cos(state[2])
+        Dstate[1] = action[0] * np.sin(state[2])
+        Dstate[2] = (action[0] * np.tan(action[1])) / self.L
+
+        return Dstate
+ 
+    def _disturb_dyn(self, t, disturb):
+        """
+        
+        
+        """       
+        Ddisturb = np.zeros(self.dim_disturb)
+        
+        for k in range(0, self.dim_disturb):
+            Ddisturb[k] = - self.tau_disturb[k] * ( disturb[k] + self.sigma_disturb[k] * (randn() + self.mu_disturb[k]) )
+                
+        return Ddisturb   
+    
+    def out(self, state, action=[]):
+        observation = np.zeros(self.dim_output)
+        observation = state
+        return observation

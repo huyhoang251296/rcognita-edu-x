@@ -140,20 +140,40 @@ class Animator3WRobotNI(Animator):
         self.fig_sim = plt.figure(figsize=(10,10))    
             
         # xy plane  
-        self.axs_xy_plane = self.fig_sim.add_subplot(221, autoscale_on=False, xlim=(xMin,xMax), ylim=(yMin,yMax),
+        self.axs_xy_plane = self.fig_sim.add_subplot(221, autoscale_on=True,
                                                   xlabel='x [m]', ylabel='y [m]', title='Pause - space, q - quit, click - data cursor')
         self.axs_xy_plane.set_aspect('equal', adjustable='box')
         self.axs_xy_plane.plot([xMin, xMax], [0, 0], 'k--', lw=0.75)   # Help line
         self.axs_xy_plane.plot([0, 0], [yMin, yMax], 'k--', lw=0.75)   # Help line
         self.line_traj, = self.axs_xy_plane.plot(xCoord0, yCoord0, 'b--', lw=0.5)
 
+        # plot trajectory
+        print("ctrl_benchmarking", hasattr(self.ctrl_benchmarking, "Stanley_CTRL"))
+        if self.sys.name == "Sys3WRobotStanley" and \
+            hasattr(self.ctrl_benchmarking, "Stanley_CTRL") and \
+            hasattr(self.ctrl_benchmarking.Stanley_CTRL, "trajectory"):
+            print("plot trajectory")
+            self.axs_xy_plane.plot(self.ctrl_benchmarking.Stanley_CTRL.trajectory[0],
+                                   self.ctrl_benchmarking.Stanley_CTRL.trajectory[1],
+                                   "r-",
+                                   lw=0.75)
 
+        if hasattr(self.ctrl_benchmarking, "rv"):
+            X, Y, Z = create_obstacle_map(
+                self.ctrl_benchmarking.rv,
+                [xMin, xMax],
+                [yMin, yMax],
+            )
+
+            cs = self.axs_xy_plane.contourf(X, Y, Z, alpha=1, levels=5, cmap="BuPu")
+            cs.cmap.set_over('red')
+            cs.cmap.set_under('blue')
+            cs.changed()
+        
         cirlce_target = plt.Circle((0, 0), radius=0.2, color='y', fill=True, lw=2)
         self.axs_xy_plane.add_artist(cirlce_target)
         self.text_target_handle = self.axs_xy_plane.text(0.88, 0.9, 'Target',
-                                                   horizontalalignment='left', verticalalignment='center', transform=self.axs_xy_plane.transAxes)        
-
-
+                                                   horizontalalignment='left', verticalalignment='center', transform=self.axs_xy_plane.transAxes)
 
         self.robot_marker = RobotMarker(angle=alpha_deg0)
         text_time = 't = {time:2.3f}'.format(time = t0)
@@ -182,6 +202,7 @@ class Animator3WRobotNI(Animator):
         
         text_accum_obj = r'$\int \mathrm{{Run.\,obj.}} \,\mathrm{{d}}t$ = {accum_obj:2.3f}'.format(accum_obj = 0)
         self.text_accum_obj_handle = self.fig_sim.text(0.05, 0.5, text_accum_obj, horizontalalignment='left', verticalalignment='center')
+
         self.line_run_obj, = self.axs_cost.plot(t0, run_obj, 'r-', lw=0.5, label='Run. obj.')
         self.line_accum_obj, = self.axs_cost.plot(t0, 0, 'g-', lw=0.5, label=r'$\int \mathrm{Run.\,obj.} \,\mathrm{d}t$')
         self.axs_cost.legend(fancybox=True, loc='upper right')
@@ -257,7 +278,7 @@ class Animator3WRobotNI(Animator):
             action = self.ctrl_selector(t, observation, self.action_manual, self.ctrl_nominal, self.ctrl_benchmarking, self.ctrl_mode)
         
             self.sys.receive_action(action)
-            self.ctrl_benchmarking.receive_sys_state(self.sys._state) 
+            self.ctrl_benchmarking.receive_sys_state(self.sys._state)
             self.ctrl_benchmarking.upd_accum_obj(observation, action)
             
             run_obj = self.ctrl_benchmarking.run_obj(observation, action)
@@ -300,7 +321,7 @@ class Animator3WRobotNI(Animator):
     
 
         # Run done
-        if t >= self.t1 or np.linalg.norm(observation[:2]) < 0.2:
+        if t >= self.t1: # or np.linalg.norm(observation[:2]) < 0.2:
             if self.is_print_sim_step:
                 print('.....................................Run {run:2d} done.....................................'.format(run = self.run_curr))  
             
@@ -315,7 +336,7 @@ class Animator3WRobotNI(Animator):
                 print('Animation done...')
                 # print(self.AAA)
                 self.stop_anm()
-                # plt.close('all')
+                plt.close('all')
                 # print("HERE OK")
                 return 
             
@@ -345,5 +366,12 @@ class Animator3WRobotNI(Animator):
             upd_line(self.line_traj, np.nan, np.nan)
 
             
+def create_obstacle_map(rv, x_lim, y_lim):
+    X = np.arange(x_lim[0], x_lim[1], 0.25)
+    Y = np.arange(y_lim[0], y_lim[1], 0.25)
 
-   
+    X, Y = np.meshgrid(X, Y)
+    mesh = np.array([X, Y]).transpose((1, 2, 0))
+    Z = rv.pdf(mesh)
+
+    return X, Y, Z
